@@ -96,6 +96,83 @@ def test_infeasible_when_no_hemisphere_contains_points():
     assert r.residual < 1e-6
 
 
+class _Geo:
+    """Minimal stand-in for shapely/geojson/h3 — anything exposing the
+    `__geo_interface__` protocol. Avoids a real geometry dependency."""
+
+    def __init__(self, mapping):
+        self._mapping = mapping
+
+    @property
+    def __geo_interface__(self):
+        return self._mapping
+
+
+def test_geo_interface_polygon():
+    # A "square" of points around the north pole, as a closed GeoJSON
+    # (lng, lat) ring. By 4-fold symmetry the enclosing cone is
+    # circular, so aspect ~ 1.
+    poly = _Geo({
+        'type': 'Polygon',
+        'coordinates': [[
+            [0.0, 80.0], [90.0, 80.0], [180.0, 80.0], [270.0, 80.0],
+            [0.0, 80.0],   # closing duplicate vertex
+        ]],
+    })
+    r = skar.solve(poly)
+    assert r.status == 'converged'
+    assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-3)
+
+
+def test_geo_interface_swaps_lng_lat():
+    # GeoJSON is (lng, lat); confirm the geo-interface path matches
+    # feeding the same points manually swapped to (lat, lng).
+    positions = [[10.0, 80.0], [-20.0, 82.0], [40.0, 85.0], [5.0, 78.0]]
+    via_geo = skar.solve(_Geo({'type': 'MultiPoint', 'coordinates': positions}))
+    manual = skar.solve(
+        [(lat, lng) for lng, lat in positions], geo='latlng_deg'
+    )
+    assert via_geo.status == manual.status == 'converged'
+    assert math.isclose(via_geo.aspect_ratio, manual.aspect_ratio, rel_tol=1e-9)
+
+
+def test_geo_interface_ignores_geo_argument():
+    # geo='vec3' would be nonsense for (lng, lat) degrees, but the
+    # geometry defines its own convention so `geo` is ignored.
+    positions = [[10.0, 80.0], [-20.0, 82.0], [40.0, 85.0], [5.0, 78.0]]
+    geom = _Geo({'type': 'LineString', 'coordinates': positions})
+    assert skar.solve(geom, geo='vec3').status == 'converged'
+
+
+def test_geo_interface_multipolygon():
+    geom = _Geo({
+        'type': 'MultiPolygon',
+        'coordinates': [
+            [[[0.0, 80.0], [90.0, 80.0], [180.0, 80.0], [0.0, 80.0]]],
+            [[[270.0, 82.0], [300.0, 84.0], [330.0, 83.0], [270.0, 82.0]]],
+        ],
+    })
+    assert skar.solve(geom).status == 'converged'
+
+
+def test_geo_interface_feature_unwrap():
+    feature = _Geo({
+        'type': 'Feature',
+        'properties': {},
+        'geometry': {
+            'type': 'MultiPoint',
+            'coordinates': [[10.0, 80.0], [-20.0, 82.0], [40.0, 85.0]],
+        },
+    })
+    assert skar.solve(feature).status == 'converged'
+
+
+def test_geo_interface_unsupported_type():
+    pt = _Geo({'type': 'Point', 'coordinates': [10.0, 80.0]})
+    with pytest.raises(ValueError, match='unsupported __geo_interface__'):
+        skar.solve(pt)
+
+
 def test_invalid_geo():
     with pytest.raises(ValueError, match='geo must be'):
         skar.solve(OCTANT_DEG, geo='xyz')

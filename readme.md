@@ -44,6 +44,20 @@ Any list/tuple of points works; a NumPy array is also accepted and is
 read as an `(N, k)` array whose **rows are points** (`k` = 2 for the
 `latlng` family, 3 for `'vec3'`).
 
+Objects implementing `__geo_interface__` (shapely, geojson, h3
+`LatLngPoly`/`LatLngMultiPoly`, …) can be passed directly — their
+vertices are read as GeoJSON `(lng, lat)` degrees, so `geo` is ignored:
+
+```python
+from shapely.geometry import Polygon
+
+poly = Polygon([(lng0, lat0), (lng1, lat1), ...])  # GeoJSON lng/lat
+r = skar.solve(poly)  # aspect ratio of the polygon's vertices
+```
+
+`MultiPoint`, `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
+and a `Feature` wrapping one of those are supported.
+
 `solve` returns a `Result`; inspect `.status`
 (`'converged'` / `'infeasible'` / `'did_not_converge'`) before reading
 the other fields. See the docstrings in `src/skar/__init__.py` for the

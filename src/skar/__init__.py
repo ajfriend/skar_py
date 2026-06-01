@@ -9,6 +9,36 @@ from . import _cy  # Cython extension
 _GEO = frozenset({'latlng', 'latlng_deg', 'latlng_rad', 'vec3'})
 
 
+def _ring(ring):
+    # A GeoJSON polygon ring is closed — the last position repeats the
+    # first (RFC 7946 §3.1.6). Drop it so that vertex isn't counted twice.
+    return list(ring[:-1])
+
+
+def _geo_interface_positions(gi):
+    """Flatten a GeoJSON-like mapping (the value of an object's
+    ``__geo_interface__``) into a flat list of positions. GeoJSON
+    positions are ``[lng, lat, ...]``; the caller swaps to skar's
+    ``(lat, lng)``. Polygons contribute their exterior ring only."""
+    t = gi.get('type')
+    if t == 'Feature':
+        return _geo_interface_positions(gi['geometry'])
+    coords = gi['coordinates']
+    if t in ('MultiPoint', 'LineString'):
+        return list(coords)
+    if t == 'Polygon':
+        return _ring(coords[0])
+    if t == 'MultiPolygon':
+        out = []
+        for poly in coords:
+            out.extend(_ring(poly[0]))
+        return out
+    raise ValueError(
+        f'skar: unsupported __geo_interface__ geometry type {t!r}; '
+        f'expected MultiPoint, LineString, Polygon, or MultiPolygon'
+    )
+
+
 @dataclass(frozen=True)
 class Result:
     """Outcome of a `solve` call. Inspect `.status` to know which
@@ -62,6 +92,15 @@ def solve(
             **rows are points** and columns are coordinates (`k` = 2
             for the `latlng` family, 3 for `'vec3'`). At least 3 points
             are required.
+
+            An object exposing `__geo_interface__` (shapely, geojson,
+            h3 `LatLngPoly`/`LatLngMultiPoly`, …) is also accepted: its
+            vertices are extracted and read as GeoJSON `(lng, lat)`
+            degrees. Supported geometry types are `MultiPoint`,
+            `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
+            and a `Feature` wrapping one of those. For such inputs the
+            `geo` argument is **ignored** — the geometry defines its own
+            convention.
         geo: input convention.
             `'latlng'` (default) and `'latlng_deg'`: each point is
                 `(lat, lng)` in **degrees** — matching h3's convention.
@@ -85,6 +124,14 @@ def solve(
             points, non-finite/negative tolerance, or near-coplanar
             input.
     """
+    # An object exposing __geo_interface__ defines its own convention:
+    # GeoJSON (lng, lat) degrees. Extract its vertices, swap to skar's
+    # (lat, lng), and ignore `geo`.
+    if hasattr(points, '__geo_interface__'):
+        positions = _geo_interface_positions(points.__geo_interface__)
+        points = [(p[1], p[0]) for p in positions]
+        geo = 'latlng_deg'
+
     if geo not in _GEO:
         raise ValueError(
             f"geo must be one of {sorted(_GEO)}, got {geo!r}"
