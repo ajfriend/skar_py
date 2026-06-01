@@ -199,6 +199,11 @@ restore the URL pin.
 
 ## Cutting a release
 
+> **PyPI publishing is currently disabled** — the `to-pypi` job in
+> `wheels.yml` is commented out (see its `TODO(pypi)`). The sdist + wheels
+> still build and test on every push/release; they just aren't uploaded.
+> The steps below apply once it's re-enabled.
+
 Once the `pypi` Trusted-Publisher OIDC environment is configured on the
 GitHub repo (no API tokens involved):
 
