@@ -1,26 +1,24 @@
-# disable editable installs so uv sync does a full build of the zig extension
+# Non-editable install (the wheel is exercised as shipped). uv won't pick up
+# a source change on its own, so `test` rebuilds explicitly via `reinstall`:
+# a cold ReleaseFast Zig build + Cython compile, ~4s. The build backend is
+# reused from the venv (pyproject [tool.uv] no-build-isolation) rather than
+# re-staged into a fresh isolated env each time (~5s saved). No `uv cache
+# clean` — it adds nothing and once stalled 300s on the uv lock.
 export UV_NO_EDITABLE := "1"
 export UV_OFFLINE := "0"  # toggle on when offline to avoid failures
 
 _:
     just --list
 
-# force-rebuild the zig extension to avoid stale builds
 reinstall:
-    uv cache clean skar
     uv sync --reinstall-package skar
 
-# locally, always reinstall before testing
+# rebuild (pick up source changes) + run the suite
 test: reinstall ci-test
 
+# --no-sync: the env is already built (by `reinstall` locally, by `uv sync`
+# in CI), so don't let `uv run` trigger a second redundant rebuild.
 ci-test:
-    uv run pytest -q
-
-# Faster loop for Python-only edits: rebuild/reinstall skar but skip the
-# `uv cache clean` (so build-backend deps aren't re-staged), then test.
-# Use `just test` when the Zig/Cython layer changed.
-test-quick:
-    uv sync --reinstall-package skar
     uv run --no-sync pytest -q
 
 # Build the wheel.

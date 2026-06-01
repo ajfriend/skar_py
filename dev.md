@@ -107,19 +107,47 @@ libskar statically linked in); no separate dylib.
 ## Building and testing locally
 
 ```sh
-just reinstall  # uv cache clean skar + uv sync --reinstall-package skar
-just test       # reinstall + uv run pytest
+just test       # reinstall (rebuild) + uv run pytest, ~4s
+just reinstall  # rebuild only
 just wheel      # uv build  (see the dependency-pin caveat below)
 ```
 
 `uv sync` invokes meson-python, which runs Zig (via `python -m ziglang
 build`, since `ziglang` is in `[build-system].requires`), then
 cythonizes `src/cython/_cy.pyx` and links the result against the Zig
-static archive. No host-level Zig or Cython install is needed — both
-come from PyPI as build deps. Local dev uses non-editable installs
-(`UV_NO_EDITABLE=1` at the top of the justfile) so each edit
-force-reinstalls; `just test` chains through `just reinstall` so stale
-artifacts don't survive a test run.
+static archive. No host-level Zig or Cython install is needed — both come
+from PyPI as build deps.
+
+### The test loop (~4s, non-editable)
+
+skar is a **non-editable** install (`UV_NO_EDITABLE=1`), so the wheel is
+exercised as it ships. uv does *not* rebuild a non-editable install when
+the source changes, so `just test` runs `reinstall`
+(`uv sync --reinstall-package skar`) to pick up edits, then pytest. About
+**4 seconds**, and reliably so. Two settings keep it there — both about the
+*rebuild machinery*, since the Zig compile itself is never the bottleneck
+(a cold ReleaseFast build is ~4s, a warm one ~0.07s):
+
+- **`[tool.uv] no-build-isolation-package = ["skar"]`** plus the build
+  backend (`meson-python`, `ninja`, `cython`, `ziglang`) in the `dev`
+  group. Each `--reinstall-package` reuses those tools from the venv
+  instead of staging a fresh isolated build env — which would re-install
+  ziglang (~50 MB) and friends every time, ~5s of pure overhead (~9s total
+  vs ~4s).
+- **no `uv cache clean`** in `reinstall`. `--reinstall-package` already
+  forces a rebuild, so the clean buys nothing — and it serializes on uv's
+  global cache lock, which once stalled for the full 300s lock timeout when
+  another uv process held it. That 300s hang, not the build, was the only
+  genuinely slow run.
+
+`ci-test` uses `uv run --no-sync` so the already-built env (from `reinstall`
+locally, or `uv sync` in CI) isn't rebuilt a second time.
+
+An *editable* install would cut this to ~0.5s via meson-python's
+rebuild-on-import, but that hook shells out to `ninja` and is fragile under
+uv's build isolation (stale `ninja` path → `FileNotFoundError`); it needs
+the same `no-build-isolation` setup just to work. Not worth the
+rebuild-on-import machinery for a ~4s gap — see `todo.md`.
 
 ## The skar_zig dependency: local path vs. release pin
 
