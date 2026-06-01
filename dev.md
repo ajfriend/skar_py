@@ -149,37 +149,39 @@ uv's build isolation (stale `ninja` path → `FileNotFoundError`); it needs
 the same `no-build-isolation` setup just to work. Not worth the
 rebuild-on-import machinery for a ~4s gap — see `todo.md`.
 
-## The skar_zig dependency: local path vs. release pin
+## The skar_zig dependency: release pin vs. local path
 
-`src/zig/build.zig.zon` pins the upstream `skar` package. There are
-two modes, and they behave differently for in-place builds vs.
-sdist/wheel builds:
+`src/zig/build.zig.zon` pins the upstream `skar` package. The repo ships
+a **URL+hash pin to a released tag** — the form wheels/CI need, since
+they build from an isolated sdist copy that can't see a sibling checkout:
 
 ```zig
-// Local development — resolve from the sibling checkout on disk.
-.skar = .{ .path = "../../../skar_zig" },
+.skar = .{
+    .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.1.0.tar.gz",
+    .hash = "skar-0.1.0-...",
+},
 ```
 
-- **In-place builds** (`just test`, `uv sync`) build from the source
-  tree, so the relative `.path` resolves and everything works **with
-  no network and without `skar_zig` on GitHub**. This is the loop for
-  developing both sides together.
-- **sdist / wheel builds** (`uv build`, `just wheel`, CI) build from
-  an *isolated* sdist copy in a temp dir, where `../../../skar_zig` no
-  longer exists. These require a URL+hash pin instead.
+To **co-develop both repos**, temporarily swap to a local path — no
+network, no GitHub needed. `just test` / `uv sync` resolve it in-place;
+only sdist/wheel builds (`uv build`, `just wheel`, CI) need the URL form,
+since they build from a temp dir where `../../../skar_zig` doesn't exist:
 
-To switch to a release pin (needed before building wheels / publishing
-/ running the `wheels` CI workflow):
+```zig
+.skar = .{ .path = "../../../skar_zig" },   // relative to src/zig/
+```
+
+To **bump to a newer skar_zig** (or restore the URL pin after local dev):
 
 ```sh
 cd src/zig && zig fetch --save=skar \
   https://github.com/ajfriend/skar_zig/archive/refs/tags/vX.Y.Z.tar.gz
 ```
 
-That rewrites the `dependencies.skar` entry from `.path` to `.url` +
-`.hash`. Re-run `just test` to confirm the pinned version still works.
-(This is also how you bump to a newer `skar_zig` later — re-run
-`zig fetch --save` against the new tag.)
+That rewrites `dependencies.skar` to `.url` + `.hash`; re-run `just test`.
+Caveat: if the existing entry is a `.path`, `--save` overwrites the path
+*value* with the URL and adds no hash — first clear it to
+`.dependencies = .{}`, then fetch.
 
 ## Continuous integration
 
@@ -189,11 +191,11 @@ That rewrites the `dependencies.skar` entry from `.path` to `.url` +
   cibuildwheel matrix, and on a published GitHub release publishes to
   PyPI via OIDC trusted publishing.
 
-Both build from an isolated sdist, so **CI only works once
-`build.zig.zon` uses a URL+hash pin** (see the section above) — i.e.
-after `skar_zig` is pushed and tagged on GitHub. With the local
-`.path` pin, the in-place `test` workflow's `uv sync` step still works,
-but the `wheels` workflow's sdist build does not.
+Both build from an isolated sdist using the URL+hash pin above, so they
+need `skar_zig` pushed and tagged on GitHub (it is). If you switch to a
+local `.path` for co-development, the in-place `test` workflow's
+`uv sync` still works, but the `wheels` sdist build won't until you
+restore the URL pin.
 
 ## Cutting a release
 

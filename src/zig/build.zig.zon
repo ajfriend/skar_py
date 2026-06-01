@@ -4,14 +4,9 @@
     .fingerprint = 0x26bd05582dbe2aa6,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        // Local-development pin: resolve the upstream skar package
-        // straight from the sibling checkout on disk — no network, no
-        // hash. For a release, swap this for a URL+hash pin via
-        //   cd src/zig && zig fetch --save=skar \
-        //     https://github.com/ajfriend/skar_zig/archive/refs/tags/vX.Y.Z.tar.gz
-        // The path is relative to this file (skar_py/src/zig/).
         .skar = .{
-            .path = "../../../skar_zig",
+            .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.1.0.tar.gz",
+            .hash = "skar-0.1.0-dHjpX6rwBACpoMpzFt6VhdOzhge7_Lw0C57WhzoSZO_1",
         },
     },
     .paths = .{
