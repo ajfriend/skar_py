@@ -24,6 +24,11 @@ wheel:
 lab:
     uv run --group lab jupyter lab
 
+# Run the DGGS finest-resolution aspect-ratio survey (H3/S2/A5).
+# Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
+dggs:
+    uv run --group dggs scripts/dggs/survey.py
+
 purge:
     just _rm .venv
     just _rm '*.pytest_cache'

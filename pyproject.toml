@@ -42,6 +42,8 @@ Issues = "https://github.com/ajfriend/skar_py/issues"
 [dependency-groups]
 dev = ["pytest>=8", "pytest-cov>=5"]
 lab = ["jupyterlab>=4", "matplotlib>=3", "h3"]
+# scripts/dggs/survey.py — DGGS aspect-ratio survey deps.
+dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "pya5"]
 
 [tool.pytest.ini_options]
 addopts = [

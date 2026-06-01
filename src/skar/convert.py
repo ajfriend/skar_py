@@ -84,7 +84,7 @@ def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
         geo = 'latlng_deg'
 
     if geo not in _GEO:
-        raise ValueError(f"geo must be one of {sorted(_GEO)}, got {geo!r}")
+        raise ValueError(f'geo must be one of {sorted(_GEO)}, got {geo!r}')
 
     arr = np.ascontiguousarray(points, dtype=np.float64)
     cols = 3 if geo == 'vec3' else 2

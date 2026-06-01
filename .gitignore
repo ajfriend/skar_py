@@ -24,6 +24,9 @@ zig-pkg/
 # uv lockfile — opt in if you want it tracked
 uv.lock
 
+# Script outputs (generated plots)
+scripts/dggs/out/
+
 # OS
 .DS_Store
 .ipynb_checkpoints/
