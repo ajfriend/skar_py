@@ -1,0 +1,110 @@
+//! C ABI shim for the skar Python bindings. Marshals between C
+//! scalars / out-params and the upstream `skar.solve` API; all real
+//! work happens in the `skar` Zig package.
+//!
+//! Minimal surface: it exposes the headline result of a solve —
+//! status, aspect ratio, cone axis, eigenvalues, gap — but not the
+//! variable-length active-set certificate (indices/lambdas). The cert
+//! is freed here via `outcome.deinit()` before returning; surfacing it
+//! across the C boundary would mean a caller-owned buffer protocol and
+//! is deferred until a consumer needs it.
+
+const std = @import("std");
+const skar = @import("skar");
+
+// Return codes for the `skar_solve` call itself: 0 = "ran, status is
+// in out_status"; non-zero = "could not run". Mirrors the upstream
+// errors-vs-outcome split (see src/api.zig in skar_zig).
+pub const SKAR_OK: c_int = 0;
+pub const SKAR_INSUFFICIENT_POINTS: c_int = 1;
+pub const SKAR_INVALID_TOLERANCE: c_int = 2;
+pub const SKAR_COPLANAR_INPUT: c_int = 3;
+pub const SKAR_OUT_OF_MEMORY: c_int = 4;
+pub const SKAR_INTERNAL: c_int = 5;
+
+// Values written to `out_status` on SKAR_OK — which Outcome variant
+// the solver produced.
+pub const SKAR_STATUS_CONVERGED: c_int = 0;
+pub const SKAR_STATUS_INFEASIBLE: c_int = 1;
+pub const SKAR_STATUS_DID_NOT_CONVERGE: c_int = 2;
+
+/// C ABI: solve the spherical aspect-ratio problem for a point set.
+///
+/// `pts_buf` is an interleaved `(N, 3)` row-major buffer
+/// `[x0, y0, z0, ...]` — what numpy hands us for a `(N, 3)` float64
+/// array. `[3]f64` is exactly that layout, so we reinterpret the
+/// pointer with no copy. `n_hull`, `gap_tol`, `coplanarity_tol`, and
+/// `max_outer` map straight onto `skar.SolveOptions`.
+///
+/// On SKAR_OK, `out_status` selects which outputs are meaningful:
+///   - converged:        aspect, axis, sigma, gap, outer_iters
+///   - did_not_converge: aspect, axis, sigma, gap, outer_iters (uncertified)
+///   - infeasible:       residual
+/// Outputs not meaningful for the variant are left as NaN / 0.
+pub export fn skar_solve(
+    pts_buf: [*]const f64,
+    n: usize,
+    gap_tol: f64,
+    n_hull: c_int,
+    coplanarity_tol: f64,
+    max_outer: c_uint,
+    out_status: *c_int,
+    out_aspect: *f64,
+    out_axis: *[3]f64,
+    out_sigma: *[3]f64,
+    out_gap: *f64,
+    out_outer_iters: *c_uint,
+    out_residual: *f64,
+) c_int {
+    const X: []const [3]f64 = @as([*]const [3]f64, @ptrCast(pts_buf))[0..n];
+
+    const opts: skar.SolveOptions = .{
+        .gap_tol = gap_tol,
+        .n_hull = @intCast(n_hull),
+        .coplanarity_tol = coplanarity_tol,
+        .max_outer = @intCast(max_outer),
+    };
+
+    const nan = std.math.nan(f64);
+    out_aspect.* = nan;
+    out_axis.* = .{ nan, nan, nan };
+    out_sigma.* = .{ nan, nan, nan };
+    out_gap.* = nan;
+    out_outer_iters.* = 0;
+    out_residual.* = nan;
+
+    var outcome = skar.solve(std.heap.c_allocator, X, opts) catch |err| switch (err) {
+        error.InsufficientPoints => return SKAR_INSUFFICIENT_POINTS,
+        error.InvalidTolerance => return SKAR_INVALID_TOLERANCE,
+        error.CoplanarInput => return SKAR_COPLANAR_INPUT,
+        error.OutOfMemory => return SKAR_OUT_OF_MEMORY,
+        // SolveError variants (NegativeDualityGap / NegativeEigenvalue /
+        // SingularMoment): internal-correctness bugs in the library.
+        else => return SKAR_INTERNAL,
+    };
+    defer outcome.deinit();
+
+    switch (outcome) {
+        .converged => |c| {
+            out_status.* = SKAR_STATUS_CONVERGED;
+            out_aspect.* = c.aspectRatio();
+            out_axis.* = c.b().m;
+            out_sigma.* = c.sigma;
+            out_gap.* = c.gap;
+            out_outer_iters.* = c.outer_iters;
+        },
+        .infeasible => |inf| {
+            out_status.* = SKAR_STATUS_INFEASIBLE;
+            out_residual.* = inf.residual;
+        },
+        .did_not_converge => |d| {
+            out_status.* = SKAR_STATUS_DID_NOT_CONVERGE;
+            out_aspect.* = d.sigma[2] / d.sigma[1];
+            out_axis.* = d.Q.col(0).m;
+            out_sigma.* = d.sigma;
+            out_gap.* = d.gap;
+            out_outer_iters.* = d.outer_iters;
+        },
+    }
+    return SKAR_OK;
+}

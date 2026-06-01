@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Bundled static library (produced by the zig build)
+src/skar/libskar.*
+
+# Zig build artifacts
+zig-out/
+.zig-cache/
+zig-pkg/
+
+# uv lockfile — opt in if you want it tracked
+uv.lock
+
+# OS
+.DS_Store
+.ipynb_checkpoints/
