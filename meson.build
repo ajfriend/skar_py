@@ -40,5 +40,8 @@ py.extension_module('_cy',
 
 py.install_sources(
   'src/skar/__init__.py',
+  'src/skar/convert.py',
+  'src/skar/outcomes.py',
+  'src/skar/solver.py',
   subdir: 'skar',
 )
