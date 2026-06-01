@@ -24,22 +24,25 @@ archive. No host-level Zig or Cython install is required.
 ## Usage
 
 ```python
-import numpy as np
 import skar
 
-# Points as (lat, lng) in degrees (default), or pass geo='vec3' for
-# unit (x, y, z) rows.
-pts = np.array([
-    [0.0,  0.0],
-    [0.0, 90.0],
-    [90.0, 0.0],
-])
+# A sequence of points. Each point is (lat, lng) in degrees by
+# default; pass geo='vec3' to give unit (x, y, z) triples instead.
+pts = [
+    (0.0,  0.0),
+    (0.0, 90.0),
+    (90.0, 0.0),
+]
 
 r = skar.solve(pts)
 if r.status == 'converged':
     print(r.aspect_ratio)  # cross-section axis ratio (>= 1)
     print(r.axis)          # unit cone axis (x, y, z)
 ```
+
+Any list/tuple of points works; a NumPy array is also accepted and is
+read as an `(N, k)` array whose **rows are points** (`k` = 2 for the
+`latlng` family, 3 for `'vec3'`).
 
 `solve` returns a `Result`; inspect `.status`
 (`'converged'` / `'infeasible'` / `'did_not_converge'`) before reading

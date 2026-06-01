@@ -6,8 +6,7 @@ import numpy as np
 
 from . import _cy  # Cython extension
 
-_GEO_COLS = {'latlng': 2, 'latlng_deg': 2, 'latlng_rad': 2, 'vec3': 3}
-_STATUS = {0: 'converged', 1: 'infeasible', 2: 'did_not_converge'}
+_GEO = frozenset({'latlng', 'latlng_deg', 'latlng_rad', 'vec3'})
 
 
 @dataclass(frozen=True)
@@ -56,15 +55,18 @@ def solve(
     unit sphere, and return its aspect ratio.
 
     Args:
-        points: 2-D array-like of points. Anything numpy can normalize
-            to a contiguous float64 matrix (list of tuples, ndarray,
-            ...) is accepted. Column count must match `geo`: 2 for the
-            `latlng` family, 3 for `'vec3'`.
+        points: a sequence of points — typically a list or tuple of
+            `(lat, lng)` pairs (or `(x, y, z)` triples for
+            `geo='vec3'`); each element is one point. A NumPy array is
+            also accepted, interpreted as a 2-D `(N, k)` array whose
+            **rows are points** and columns are coordinates (`k` = 2
+            for the `latlng` family, 3 for `'vec3'`). At least 3 points
+            are required.
         geo: input convention.
-            `'latlng'` (default) and `'latlng_deg'`: each row is
+            `'latlng'` (default) and `'latlng_deg'`: each point is
                 `(lat, lng)` in **degrees** — matching h3's convention.
-            `'latlng_rad'`: each row is `(lat, lng)` in radians.
-            `'vec3'`: each row is a unit `(x, y, z)` on the sphere.
+            `'latlng_rad'`: each point is `(lat, lng)` in radians.
+            `'vec3'`: each point is a unit `(x, y, z)` on the sphere.
         gap_tol: convergence threshold on the duality gap (finite,
             positive). Smaller = tighter but more iterations.
         n_hull: convex-hull preprocessing threshold. If more than
@@ -83,13 +85,13 @@ def solve(
             points, non-finite/negative tolerance, or near-coplanar
             input.
     """
-    if geo not in _GEO_COLS:
+    if geo not in _GEO:
         raise ValueError(
-            f"geo must be one of {sorted(_GEO_COLS)}, got {geo!r}"
+            f"geo must be one of {sorted(_GEO)}, got {geo!r}"
         )
 
     arr = np.ascontiguousarray(points, dtype=np.float64)
-    cols = _GEO_COLS[geo]
+    cols = 3 if geo == 'vec3' else 2
     if arr.ndim != 2 or arr.shape[1] != cols:
         raise ValueError(
             f'points must be a 2-D array with shape (N, {cols}) for '
@@ -110,10 +112,9 @@ def solve(
         arr, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
     )
 
-    name = _STATUS[status]
-    if name == 'infeasible':
+    if status == 'infeasible':
         return Result('infeasible', None, None, None, None, outer_iters, residual)
-    return Result(name, aspect, axis, sigma, gap, outer_iters, None)
+    return Result(status, aspect, axis, sigma, gap, outer_iters, None)
 
 
 __all__ = ['solve', 'Result']

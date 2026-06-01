@@ -22,6 +22,12 @@ cdef extern from *:
                    unsigned int *out_outer_iters, double *out_residual)
 
 
+# Status strings indexed by the SKAR_STATUS_* code that c_api.zig
+# writes to out_status. Owned here, at the C boundary, so the raw
+# integer codes never leak into the Python wrapper.
+_STATUS = ('converged', 'infeasible', 'did_not_converge')
+
+
 def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
           double coplanarity_tol, unsigned int max_outer):
     if pts.shape[1] != 3:
@@ -57,7 +63,7 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
         raise RuntimeError(f'skar: unknown error code {err}')
 
     return (
-        status,
+        _STATUS[status],
         aspect,
         (axis[0], axis[1], axis[2]),
         (sigma[0], sigma[1], sigma[2]),

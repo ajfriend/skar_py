@@ -59,7 +59,20 @@ def test_elongated_scatter_has_aspect_above_one():
     assert r.aspect_ratio > 1.0
 
 
-def test_accepts_python_list():
+def test_primary_usage_is_a_plain_list_of_latlng_points():
+    # The intended ergonomics: a list of (lat, lng) tuples, no numpy at
+    # the call site.
+    pts = [
+        (0.0,  0.0),
+        (0.0, 90.0),
+        (90.0, 0.0),
+    ]
+    r = skar.solve(pts)
+    assert r.status == 'converged'
+    assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-6)
+
+
+def test_accepts_python_list_of_vec3():
     pts = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
     r = skar.solve(pts, geo='vec3')
     assert r.status == 'converged'
