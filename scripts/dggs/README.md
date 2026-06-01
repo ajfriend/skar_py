@@ -9,6 +9,10 @@ just dggs
 # or: uv run --group dggs scripts/dggs/survey.py
 ```
 
+For an interactive version with the same plots inline and a configurable
+`N`, see [`notebooks/dggs_survey.ipynb`](../../notebooks/dggs_survey.ipynb)
+(open with `just lab`).
+
 Writes two PNGs to `scripts/dggs/out/` (gitignored) and prints a summary
 stats table:
 
