@@ -1,4 +1,4 @@
-# skar (Python)
+# skar: Spherical Conic Aspect Ratio
 
 Python bindings for [`skar_zig`](https://github.com/ajfriend/skar_zig),
 a spherical aspect-ratio solver. Given a point set on the unit sphere,
@@ -108,14 +108,22 @@ the full field reference.
 .
 ├── pyproject.toml          — meson-python config, package metadata
 ├── meson.build             — drives Zig static-archive build + Cython compile
-├── justfile                — reinstall / test / wheel / clean
+├── justfile                — reinstall / test / wheel / examples / clean
 ├── src/
 │   ├── cython/_cy.pyx      — Cython binding, exposes _cy.solve
-│   ├── skar/__init__.py    — Python wrapper: validates input, latlng→xyz, delegates
+│   ├── skar/
+│   │   ├── __init__.py     — gathers the public API (solve, to_vec3, Outcome…)
+│   │   ├── convert.py      — input → (N, 3) unit vectors: to_vec3, geo-interface
+│   │   ├── outcomes.py     — Converged/Infeasible/DidNotConverge + build()
+│   │   └── solver.py       — solve(): convert → _cy.solve → build
 │   └── zig/
 │       ├── build.zig       — produces libskar.{a,lib} (static archive)
 │       ├── build.zig.zon   — pins the skar_zig dependency
 │       └── c_api.zig       — pub export fn skar_solve
+├── scripts/                — examples (run via `just dggs|states|countries`)
+│   ├── dggs/               — H3/S2/A5 finest-resolution aspect-ratio survey
+│   ├── states/             — US-state aspect ratios (geopandas + skar)
+│   └── countries/          — country aspect ratios (geopandas + skar)
 └── tests/test_bindings.py
 ```
 

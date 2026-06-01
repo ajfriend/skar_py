@@ -79,7 +79,7 @@ code to the matching Python exception.
 .
 ├── pyproject.toml          — meson-python config, package metadata
 ├── meson.build             — drives Zig static-archive build + Cython compile
-├── justfile                — reinstall / test / wheel / lab / clean
+├── justfile                — reinstall / test / wheel / lab / examples / clean
 ├── src/
 │   ├── cython/
 │   │   └── _cy.pyx         — Cython binding, exposes _cy.solve
@@ -92,6 +92,10 @@ code to the matching Python exception.
 │       ├── build.zig       — produces libskar.{a,lib} (static archive)
 │       ├── build.zig.zon   — pins the skar_zig dependency
 │       └── c_api.zig       — pub export fn skar_solve
+├── scripts/                — examples (own dep groups; not part of the wheel)
+│   ├── dggs/               — H3/S2/A5 aspect-ratio survey (`just dggs`)
+│   ├── states/             — US-state aspect ratios (`just states`)
+│   └── countries/          — country aspect ratios (`just countries`)
 └── tests/
     └── test_bindings.py
 ```
