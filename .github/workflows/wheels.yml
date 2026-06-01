@@ -1,0 +1,169 @@
+name: wheels
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+concurrency:
+  group: wheels-${{ github.ref }}
+  # Don't cancel a release run mid-publish, but for branch pushes and
+  # PRs the latest commit should win — old runs just block the queue.
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+jobs:
+  sdist:
+    name: build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.13"
+          cache-suffix: wheels-sdist
+
+      - name: Build sdist
+        run: uv build --sdist
+
+      - name: Test sdist round-trip
+        run: |
+          uv venv test-env
+          uv pip install --python test-env/bin/python --no-cache dist/*.tar.gz pytest numpy
+          test-env/bin/pytest -o addopts=
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          compression-level: 0
+
+  # Ask cibuildwheel which wheels it would build for each (platform,
+  # arch) given our [tool.cibuildwheel] config, then emit a JSON
+  # matrix that the wheels job consumes via `fromJson()`. Saves
+  # hand-maintaining a 30-row include list as Python versions evolve.
+  discover:
+    name: discover build identifiers
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      # Keep this version in sync with `pypa/cibuildwheel@vX.Y.Z`
+      # below — GHA's `uses:` doesn't accept expression interpolation,
+      # so the literal has to live in two places.
+      - run: pip install cibuildwheel==3.4.1
+      - id: set
+        shell: bash
+        run: |
+          python <<'PY' >> $GITHUB_OUTPUT
+          import json
+          import subprocess
+
+          # (runner image, cibuildwheel platform name, arch).
+          targets = [
+              ("ubuntu-latest",    "linux",   "x86_64"),
+              ("ubuntu-24.04-arm", "linux",   "aarch64"),
+              ("macos-latest",     "macos",   "arm64"),
+              ("windows-latest",   "windows", "AMD64"),
+          ]
+
+          include = []
+          for runner, platform, arch in targets:
+              ids = subprocess.run(
+                  ["cibuildwheel",
+                   f"--platform={platform}",
+                   f"--archs={arch}",
+                   "--print-build-identifiers"],
+                  capture_output=True, text=True, check=True,
+              ).stdout.split()
+              for ident in ids:
+                  include.append({"os": runner, "only": ident})
+
+          print(f"matrix={json.dumps({'include': include})}")
+          PY
+
+  wheels:
+    # One job per build identifier (matrix expanded from `discover`)
+    # so wall-clock approaches max(per-wheel build time) instead of
+    # sum. Free for public repos on GitHub Actions runner-minutes.
+    name: ${{ matrix.only }}
+    needs: discover
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # cibuildwheel uses uv as the build frontend; on Linux it
+      # bootstraps uv inside the manylinux container, but on macOS /
+      # Windows it expects uv on the host PATH. Skip the host install
+      # on Linux jobs — saves ~5s × N Linux runners of runner-minutes.
+      - if: runner.os != 'Linux'
+        uses: astral-sh/setup-uv@v8.1.0
+
+      # Pin uv's cache to C: on Windows so hardlinks work.
+      #
+      # setup-uv defaults UV_CACHE_DIR to ${RUNNER_TEMP}/setup-uv-cache,
+      # which on GitHub-hosted Windows runners is D:\a\_temp\... .
+      # cibuildwheel's `build[uv]` frontend creates Python's isolated
+      # build env via tempfile.gettempdir(), which on Windows resolves
+      # to C:\Users\runneradmin\AppData\Local\Temp\... . NTFS doesn't
+      # support hardlinks across drives, so uv falls back to full file
+      # copy ("Failed to hard link ... os error 17; falling back to
+      # copy"). For build-isolation envs containing a chunky toolchain
+      # like ziglang (~50MB, hundreds of small files, PE binaries that
+      # Defender deep-scans), that's ~48s per wheel install vs ~8s
+      # when hardlinking works.
+      #
+      # Pinning UV_CACHE_DIR to %LOCALAPPDATA% (always on C:) puts the
+      # cache on the same drive as the build env and restores
+      # hardlinking.
+      #
+      # Tracking upstream (acknowledged but not fixed; eifinger himself
+      # tried in setup-uv#451 and reverted in #460):
+      #   https://github.com/astral-sh/setup-uv/issues/227
+      #   https://github.com/astral-sh/setup-uv/issues/371
+      #   https://github.com/astral-sh/setup-uv/pull/451
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $cache = Join-Path $env:LOCALAPPDATA 'uv-cache'
+          "UV_CACHE_DIR=$cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - uses: pypa/cibuildwheel@v3.4.1
+        with:
+          only: ${{ matrix.only }}
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.only }}
+          path: wheelhouse/*.whl
+          compression-level: 0
+
+  to-pypi:
+    name: publish to PyPI
+    needs: [sdist, wheels]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/skar
+    permissions:
+      id-token: write   # required for OIDC trusted publishing
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: "{wheels-*,sdist}"
+          merge-multiple: true
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
