@@ -29,6 +29,16 @@ lab:
 dggs:
     uv run --group dggs scripts/dggs/survey.py
 
+# US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
+# scripts/states/out/states.png.
+states:
+    uv run --group geo scripts/states/states.py
+
+# Country aspect ratios: geopandas -> skar.solve -> plot. Writes
+# scripts/countries/out/countries.png.
+countries:
+    uv run --group geo scripts/countries/countries.py
+
 purge:
     just _rm .venv
     just _rm '*.pytest_cache'

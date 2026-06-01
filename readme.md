@@ -42,21 +42,28 @@ if isinstance(r, skar.Converged):
 
 Any list/tuple of points works; a NumPy array is also accepted and is
 read as an `(N, k)` array whose **rows are points** (`k` = 2 for the
-`latlng` family, 3 for `'vec3'`).
+`latlng`/`lonlat` families, 3 for `'vec3'`). The `geo` argument picks
+the convention: `'latlng'` (default, h3's `(lat, lng)` order),
+`'lonlat'` (GeoJSON's `(lon, lat)` order), their `_deg`/`_rad`
+variants, or `'vec3'`.
 
-Objects implementing `__geo_interface__` (shapely, geojson, h3
-`LatLngPoly`/`LatLngMultiPoly`, …) can be passed directly — their
-vertices are read as GeoJSON `(lng, lat)` degrees, so `geo` is ignored:
+Objects implementing `__geo_interface__` (shapely, geopandas, geojson,
+h3 `LatLngPoly`/`LatLngMultiPoly`, …) can be passed directly — their
+vertices are read as GeoJSON `(lon, lat)` degrees, so `geo` is ignored:
 
 ```python
-from shapely.geometry import Polygon
+import geopandas as gpd
 
-poly = Polygon([(lng0, lat0), (lng1, lat1), ...])  # GeoJSON lng/lat
-r = skar.solve(poly)  # aspect ratio of the polygon's vertices
+gdf = gpd.read_file('countries.geojson')
+for name, geom in zip(gdf['ADMIN'], gdf.geometry):
+    r = skar.solve(geom)            # shapely geometry via __geo_interface__
+    if isinstance(r, skar.Converged):
+        print(name, r.aspect_ratio)
 ```
 
 `MultiPoint`, `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
-and a `Feature` wrapping one of those are supported.
+and a `Feature` wrapping one of those are supported. See
+`scripts/states/` and `scripts/countries/` for end-to-end examples.
 
 `solve` runs all of this through `skar.to_vec3(points, geo=...)`, which
 returns the `(N, 3)` array of unit vectors the solver actually sees.

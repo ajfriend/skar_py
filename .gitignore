@@ -25,7 +25,7 @@ zig-pkg/
 uv.lock
 
 # Script outputs (generated plots)
-scripts/dggs/out/
+scripts/*/out/
 
 # OS
 .DS_Store
