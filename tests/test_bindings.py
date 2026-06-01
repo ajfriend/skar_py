@@ -66,6 +66,32 @@ def test_Q_and_sigma_reconstruct_a_feasible_cone():
     assert np.all(viol <= 1e-6)
 
 
+def test_to_vec3_converts_latlng_to_unit_vectors():
+    # Octant (lat, lng) degrees → the identity basis on the sphere.
+    X = skar.to_vec3([(0, 0), (0, 90), (90, 0)])
+    assert isinstance(X, np.ndarray) and X.shape == (3, 3)
+    assert np.allclose(X, np.eye(3), atol=1e-12)
+    assert np.allclose(np.linalg.norm(X, axis=1), 1.0)
+
+
+def test_to_vec3_vec3_is_passthrough():
+    pts = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+    assert np.allclose(skar.to_vec3(pts, geo='vec3'), pts)
+
+
+def test_to_vec3_reads_geo_interface_as_lng_lat():
+    geom = _Geo({'type': 'MultiPoint', 'coordinates': [[0.0, 0.0], [90.0, 0.0]]})
+    # GeoJSON (lng, lat): (0,0)->(1,0,0); (90,0)->(0,1,0).
+    assert np.allclose(skar.to_vec3(geom), [[1, 0, 0], [0, 1, 0]], atol=1e-12)
+
+
+def test_solve_matches_explicit_to_vec3():
+    pts = [(0, 0), (0, 90), (90, 0)]
+    a = skar.solve(pts)
+    b = skar.solve(skar.to_vec3(pts), geo='vec3')
+    assert a.aspect_ratio == b.aspect_ratio
+
+
 def test_latlng_matches_vec3():
     a = skar.solve(OCTANT_DEG).aspect_ratio
     b = skar.solve(OCTANT_XYZ, geo='vec3').aspect_ratio

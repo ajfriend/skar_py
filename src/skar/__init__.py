@@ -126,17 +126,12 @@ class DidNotConverge:
 Outcome = Converged | Infeasible | DidNotConverge
 
 
-def solve(
-    points,
-    *,
-    geo: Geo = 'latlng',
-    gap_tol: float = 1e-6,
-    n_hull: int = 10,
-    coplanarity_tol: float = 1e-12,
-    max_outer: int = 100,
-) -> Outcome:
-    """Find the tightest ellipsoidal cone enclosing a point set on the
-    unit sphere.
+def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
+    """Convert `points` to the `(N, 3)` unit-vector array the solver
+    consumes.
+
+    This is exactly the conversion `solve` runs on its input; call it
+    directly to see how your points land on the unit sphere.
 
     Args:
         points: a sequence of points — typically a list or tuple of
@@ -144,8 +139,7 @@ def solve(
             `geo='vec3'`); each element is one point. A NumPy array is
             also accepted, interpreted as a 2-D `(N, k)` array whose
             **rows are points** and columns are coordinates (`k` = 2
-            for the `latlng` family, 3 for `'vec3'`). At least 3 points
-            are required.
+            for the `latlng` family, 3 for `'vec3'`).
 
             An object exposing `__geo_interface__` (shapely, geojson,
             h3 `LatLngPoly`/`LatLngMultiPoly`, …) is also accepted: its
@@ -160,6 +154,80 @@ def solve(
                 `(lat, lng)` in **degrees** — matching h3's convention.
             `'latlng_rad'`: each point is `(lat, lng)` in radians.
             `'vec3'`: each point is a unit `(x, y, z)` on the sphere.
+
+    Returns:
+        A C-contiguous `(N, 3)` float64 array of points on the unit
+        sphere. `latlng` inputs are converted to `(x, y, z)`; `'vec3'`
+        rows are returned as-is (assumed already unit length).
+
+    Raises:
+        ValueError: invalid `geo`, mismatched shape, or unsupported
+            `__geo_interface__` geometry.
+    """
+    # An object exposing __geo_interface__ defines its own convention:
+    # GeoJSON (lng, lat) degrees. Extract its vertices, swap to skar's
+    # (lat, lng), and ignore `geo`.
+    if hasattr(points, '__geo_interface__'):
+        positions = _geo_interface_positions(points.__geo_interface__)
+        points = [(p[1], p[0]) for p in positions]
+        geo = 'latlng_deg'
+
+    if geo not in _GEO:
+        raise ValueError(f"geo must be one of {sorted(_GEO)}, got {geo!r}")
+
+    arr = np.ascontiguousarray(points, dtype=np.float64)
+    cols = 3 if geo == 'vec3' else 2
+    if arr.ndim != 2 or arr.shape[1] != cols:
+        raise ValueError(
+            f'points must be a 2-D array with shape (N, {cols}) for '
+            f'geo={geo!r}, got shape {arr.shape}'
+        )
+
+    if geo == 'vec3':
+        return arr
+
+    lat, lng = arr[:, 0], arr[:, 1]
+    if geo != 'latlng_rad':
+        lat, lng = np.radians(lat), np.radians(lng)
+    cl = np.cos(lat)
+    # column_stack returns a fresh C-contiguous (N, 3) f64.
+    return np.column_stack([cl * np.cos(lng), cl * np.sin(lng), np.sin(lat)])
+
+
+def _build_outcome(status, sigma, q, gap, outer_iters, residual) -> Outcome:
+    """Assemble the typed `Outcome` from the raw `_cy.solve` tuple."""
+    if status == 'infeasible':
+        return Infeasible(residual=residual)
+    # converged and did_not_converge share the same payload shape.
+    cls = Converged if status == 'converged' else DidNotConverge
+    return cls(
+        sigma=np.asarray(sigma, dtype=float),
+        Q=np.asarray(q, dtype=float).reshape(3, 3),  # row-major Q[r, c]
+        gap=gap,
+        outer_iters=outer_iters,
+    )
+
+
+def solve(
+    points,
+    *,
+    geo: Geo = 'latlng',
+    gap_tol: float = 1e-6,
+    n_hull: int = 10,
+    coplanarity_tol: float = 1e-12,
+    max_outer: int = 100,
+) -> Outcome:
+    """Find the tightest ellipsoidal cone enclosing a point set on the
+    unit sphere.
+
+    Args:
+        points: the input point set — a sequence of `(lat, lng)` pairs
+            (or `(x, y, z)` triples), a NumPy `(N, k)` array, or a
+            `__geo_interface__` object. At least 3 points are required.
+            See `to_vec3` for the full accepted-input reference.
+        geo: input convention (`'latlng'` / `'latlng_deg'` /
+            `'latlng_rad'` / `'vec3'`); see `to_vec3`. Ignored for
+            `__geo_interface__` inputs.
         gap_tol: convergence threshold on the duality gap (finite,
             positive). Smaller = tighter but more iterations.
         n_hull: convex-hull preprocessing threshold. If more than
@@ -191,56 +259,16 @@ def solve(
             points, non-finite/negative tolerance, or near-coplanar
             input.
     """
-    # An object exposing __geo_interface__ defines its own convention:
-    # GeoJSON (lng, lat) degrees. Extract its vertices, swap to skar's
-    # (lat, lng), and ignore `geo`.
-    if hasattr(points, '__geo_interface__'):
-        positions = _geo_interface_positions(points.__geo_interface__)
-        points = [(p[1], p[0]) for p in positions]
-        geo = 'latlng_deg'
-
-    if geo not in _GEO:
-        raise ValueError(
-            f"geo must be one of {sorted(_GEO)}, got {geo!r}"
-        )
-
-    arr = np.ascontiguousarray(points, dtype=np.float64)
-    cols = 3 if geo == 'vec3' else 2
-    if arr.ndim != 2 or arr.shape[1] != cols:
-        raise ValueError(
-            f'points must be a 2-D array with shape (N, {cols}) for '
-            f'geo={geo!r}, got shape {arr.shape}'
-        )
-
-    if geo != 'vec3':
-        lat = arr[:, 0]
-        lng = arr[:, 1]
-        if geo != 'latlng_rad':
-            lat = np.radians(lat)
-            lng = np.radians(lng)
-        cl = np.cos(lat)
-        # column_stack returns a fresh C-contiguous (N, 3) f64.
-        arr = np.column_stack([cl * np.cos(lng), cl * np.sin(lng), np.sin(lat)])
-
-    status, sigma, q, gap, outer_iters, residual = _cy.solve(
-        arr, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
+    X = to_vec3(points, geo=geo)
+    raw = _cy.solve(
+        X, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
     )
-
-    if status == 'infeasible':
-        return Infeasible(residual=residual)
-
-    # converged and did_not_converge share the same payload shape.
-    cls = Converged if status == 'converged' else DidNotConverge
-    return cls(
-        sigma=np.asarray(sigma, dtype=float),
-        Q=np.asarray(q, dtype=float).reshape(3, 3),  # row-major Q[r, c]
-        gap=gap,
-        outer_iters=outer_iters,
-    )
+    return _build_outcome(*raw)
 
 
 __all__ = [
     'solve',
+    'to_vec3',
     'Outcome',
     'Converged',
     'Infeasible',

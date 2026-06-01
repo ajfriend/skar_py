@@ -58,6 +58,17 @@ r = skar.solve(poly)  # aspect ratio of the polygon's vertices
 `MultiPoint`, `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
 and a `Feature` wrapping one of those are supported.
 
+`solve` runs all of this through `skar.to_vec3(points, geo=...)`, which
+returns the `(N, 3)` array of unit vectors the solver actually sees.
+Call it directly to inspect how your input maps onto the sphere:
+
+```python
+skar.to_vec3([(0, 0), (0, 90), (90, 0)])
+# array([[1., 0., 0.],
+#        [0., 1., 0.],
+#        [0., 0., 1.]])
+```
+
 ## Outcomes
 
 `solve` returns one of three outcome types — `Converged`, `Infeasible`,
