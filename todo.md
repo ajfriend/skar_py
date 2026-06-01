@@ -3,13 +3,19 @@
 - [ ] **Backport the ~4s test loop to `sparea_py`.** sparea_py has the same old
   `reinstall: uv cache clean + uv sync --reinstall-package` + `test: reinstall
   ci-test` setup, so it pays the slow/occasionally-stalling rebuild. Port the
-  final config from skar_py (commits up through the non-editable cleanup):
-  - `pyproject.toml`: `[tool.uv] no-build-isolation-package = ["sparea"]` and
-    move the build backend (`meson-python`, `ninja`, `cython`, `ziglang`) into
-    the `dev` group, so `--reinstall-package` reuses them from the venv instead
-    of re-staging a fresh isolated build env (~5s saved per rebuild).
-  - `justfile`: drop `uv cache clean` from `reinstall`; make `ci-test` use
-    `uv run --no-sync` so `test` doesn't rebuild twice. Stay non-editable.
+  final config from skar_py — note `no-build-isolation` must be **local only**
+  (a global `[tool.uv]` setting breaks `uv build`/cibuildwheel in CI, which we
+  hit):
+  - `pyproject.toml`: a **non-default `build` group** with the backend
+    (`meson-python`, `ninja`, `cython`, `ziglang`); keep `dev` to test deps.
+    Do **not** add `[tool.uv] no-build-isolation-package`.
+  - `justfile`: `reinstall: uv sync --reinstall-package sparea
+    --no-build-isolation-package sparea --group build`; drop `uv cache clean`;
+    `ci-test` uses `uv run --no-sync`. Stay non-editable.
+  - `.github/workflows`: set `UV_NO_EDITABLE: "1"` on the test job; if the
+    suite imports matplotlib, make it optional (skip plot tests when absent) so
+    the minimal wheel/sdist test envs pass.
+  - Also bump `mlugg/setup-zig@v1 -> @v2` (v1 404s on the moved Zig mirror).
 
 - [ ] **Try a Rust-backed A5 binding in the DGGS survey.** A5 cell generation
   dominates the wall-clock of `scripts/dggs/survey.py` / `dggs_survey.ipynb`
