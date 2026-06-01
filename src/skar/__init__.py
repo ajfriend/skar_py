@@ -39,7 +39,10 @@ def _geo_interface_positions(gi):
     )
 
 
-@dataclass(frozen=True)
+# eq=False: fields hold NumPy arrays, for which the dataclass-generated
+# __eq__ (a field-wise tuple compare) raises on the ambiguous array
+# truth value. Results are compared by identity instead.
+@dataclass(frozen=True, eq=False)
 class Result:
     """Outcome of a `solve` call. Inspect `.status` to know which
     fields are meaningful.
@@ -50,11 +53,17 @@ class Result:
         aspect_ratio: cone cross-section aspect ratio (``>= 1``).
             Set for ``converged`` (certified) and ``did_not_converge``
             (uncertified last iterate); ``None`` for ``infeasible``.
-        axis: unit cone axis ``(x, y, z)``. Set for ``converged`` and
-            ``did_not_converge``; ``None`` for ``infeasible``.
-        sigma: the three eigenvalues of ``A`` paired with the cone
-            axis + tangent-plane directions. ``None`` for
-            ``infeasible``.
+        sigma: ``(3,)`` float64 array — the eigenvalues of ``A`` paired
+            with the columns of ``Q`` (``sigma[0]`` ↔ axis,
+            ``sigma[1] <= sigma[2]`` ↔ the tangent-plane semi-axes).
+            ``None`` for ``infeasible``.
+        Q: ``(3, 3)`` float64 array — the eigenbasis of ``A``. **Column**
+            ``i`` is the unit eigenvector paired with ``sigma[i]``:
+            ``Q[:, 0]`` is the cone axis; ``Q[:, 1]`` and ``Q[:, 2]`` are
+            the cross-section ellipse's semi-axis directions.
+            Right-handed (``det(Q) = +1``). Reconstruct ``A`` as
+            ``Q @ np.diag(sigma) @ Q.T``. ``None`` for ``infeasible``.
+            Set for ``converged`` and ``did_not_converge``.
         gap: certified duality gap for ``converged`` (``<= gap_tol``);
             last uncertified gap for ``did_not_converge``; ``None`` for
             ``infeasible``.
@@ -65,8 +74,8 @@ class Result:
 
     status: str
     aspect_ratio: float | None
-    axis: tuple[float, float, float] | None
-    sigma: tuple[float, float, float] | None
+    sigma: np.ndarray | None
+    Q: np.ndarray | None
     gap: float | None
     outer_iters: int
     residual: float | None
@@ -155,13 +164,15 @@ def solve(
         # column_stack returns a fresh C-contiguous (N, 3) f64.
         arr = np.column_stack([cl * np.cos(lng), cl * np.sin(lng), np.sin(lat)])
 
-    status, aspect, axis, sigma, gap, outer_iters, residual = _cy.solve(
+    status, aspect, sigma, q, gap, outer_iters, residual = _cy.solve(
         arr, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
     )
 
     if status == 'infeasible':
         return Result('infeasible', None, None, None, None, outer_iters, residual)
-    return Result(status, aspect, axis, sigma, gap, outer_iters, None)
+    sigma = np.array(sigma, dtype=np.float64)
+    Q = np.array(q, dtype=np.float64).reshape(3, 3)  # row-major Q[r, c]
+    return Result(status, aspect, sigma, Q, gap, outer_iters, None)
 
 
 __all__ = ['solve', 'Result']

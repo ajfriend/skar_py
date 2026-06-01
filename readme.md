@@ -37,8 +37,12 @@ pts = [
 r = skar.solve(pts)
 if r.status == 'converged':
     print(r.aspect_ratio)  # cross-section axis ratio (>= 1)
-    print(r.axis)          # unit cone axis (x, y, z)
+    print(r.Q[:, 0])       # unit cone axis (x, y, z) — first column of Q
 ```
+
+`r.sigma` is a `(3,)` array of eigenvalues and `r.Q` is the `(3, 3)`
+eigenbasis (column `i` pairs with `sigma[i]`; column 0 is the axis), so
+the enclosing ellipsoid matrix is `A = r.Q @ np.diag(r.sigma) @ r.Q.T`.
 
 Any list/tuple of points works; a NumPy array is also accepted and is
 read as an `(N, k)` array whose **rows are points** (`k` = 2 for the

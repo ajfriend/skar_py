@@ -34,9 +34,34 @@ def test_octant_is_circular_cone(points, geo):
     r = skar.solve(points, geo=geo)
     assert r.status == 'converged'
     assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-6)
-    # Cone axis is (1,1,1)/√3.
-    axis = np.array(r.axis)
+    # Cone axis (first column of Q) is (1,1,1)/√3.
+    axis = r.Q[:, 0]
     assert math.isclose(abs(axis @ (np.ones(3) / np.sqrt(3))), 1.0, abs_tol=1e-6)
+
+
+def test_converged_exposes_orthonormal_Q():
+    r = skar.solve(OCTANT_XYZ, geo='vec3')
+    assert isinstance(r.Q, np.ndarray) and r.Q.shape == (3, 3)
+    assert isinstance(r.sigma, np.ndarray) and r.sigma.shape == (3,)
+    # Orthonormal and right-handed.
+    assert np.allclose(r.Q.T @ r.Q, np.eye(3), atol=1e-9)
+    assert math.isclose(np.linalg.det(r.Q), 1.0, abs_tol=1e-9)
+    # sigma[0] is the structural axial eigenvalue 1/sqrt(3).
+    assert math.isclose(r.sigma[0], 1.0 / math.sqrt(3.0), abs_tol=1e-9)
+    # Aspect ratio is sigma[2] / sigma[1].
+    assert math.isclose(r.aspect_ratio, r.sigma[2] / r.sigma[1], rel_tol=1e-12)
+
+
+def test_Q_and_sigma_reconstruct_a_feasible_cone():
+    # A = Q diag(sigma) Qᵀ; every input point must satisfy
+    # ‖A·x‖ − b·x <= 0 (it sits inside the certified cone). The axis b
+    # is simply Q[:, 0].
+    pts = OCTANT_XYZ
+    r = skar.solve(pts, geo='vec3')
+    A = r.Q @ np.diag(r.sigma) @ r.Q.T
+    b = r.Q[:, 0]
+    viol = np.array([np.linalg.norm(A @ x) - b @ x for x in pts])
+    assert np.all(viol <= 1e-6)
 
 
 def test_latlng_matches_vec3():
@@ -92,6 +117,8 @@ def test_infeasible_when_no_hemisphere_contains_points():
     r = skar.solve(pts, geo='vec3')
     assert r.status == 'infeasible'
     assert r.aspect_ratio is None
+    assert r.sigma is None
+    assert r.Q is None
     assert r.residual is not None
     assert r.residual < 1e-6
 
