@@ -11,6 +11,14 @@
   - `justfile`: drop `uv cache clean` from `reinstall`; make `ci-test` use
     `uv run --no-sync` so `test` doesn't rebuild twice. Stay non-editable.
 
+- [ ] **Try a Rust-backed A5 binding in the DGGS survey.** A5 cell generation
+  dominates the wall-clock of `scripts/dggs/survey.py` / `dggs_survey.ipynb`
+  (~2.5s of ~2.7s for A5 at N=5000; H3 and S2 are ~0.1s each). The current
+  `pya5` package looks pure-Python; if there's a Rust-backed A5 binding (the
+  a5geo project has a Rust impl), swapping it in could make A5 as fast as the
+  others and cut the survey time several-fold. Just a dependency swap in the
+  `dggs`/`lab` groups if the API matches.
+
 ## Resolved
 
 - **Fast non-editable test path** — done. `just test` is now ~4s, non-editable,
