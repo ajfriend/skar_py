@@ -6,7 +6,11 @@ from typing import Literal, get_args
 
 import numpy as np
 
-Geo = Literal['latlng', 'latlng_deg', 'latlng_rad', 'vec3']
+Geo = Literal[
+    'latlng', 'latlng_deg', 'latlng_rad',  # (lat, lng) — h3's order
+    'lonlat', 'lonlat_deg', 'lonlat_rad',  # (lon, lat) — GeoJSON's order
+    'vec3',
+]
 _GEO = frozenset(get_args(Geo))
 
 
@@ -54,7 +58,7 @@ def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
 
             An object exposing `__geo_interface__` (shapely, geojson,
             h3 `LatLngPoly`/`LatLngMultiPoly`, …) is also accepted: its
-            vertices are extracted and read as GeoJSON `(lng, lat)`
+            vertices are extracted and read as GeoJSON `(lon, lat)`
             degrees. Supported geometry types are `MultiPoint`,
             `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
             and a `Feature` wrapping one of those. For such inputs the
@@ -64,6 +68,8 @@ def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
             `'latlng'` (default) and `'latlng_deg'`: each point is
                 `(lat, lng)` in **degrees** — matching h3's convention.
             `'latlng_rad'`: each point is `(lat, lng)` in radians.
+            `'lonlat'` / `'lonlat_deg'` / `'lonlat_rad'`: the same, but
+                in `(lon, lat)` order — matching GeoJSON / shapely.
             `'vec3'`: each point is a unit `(x, y, z)` on the sphere.
 
     Returns:
@@ -76,12 +82,11 @@ def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
             `__geo_interface__` geometry.
     """
     # An object exposing __geo_interface__ defines its own convention:
-    # GeoJSON (lng, lat) degrees. Extract its vertices, swap to skar's
-    # (lat, lng), and ignore `geo`.
+    # GeoJSON (lon, lat) degrees. Extract its vertices (dropping any
+    # elevation) and read them as lonlat, ignoring `geo`.
     if hasattr(points, '__geo_interface__'):
-        positions = _geo_interface_positions(points.__geo_interface__)
-        points = [(p[1], p[0]) for p in positions]
-        geo = 'latlng_deg'
+        points = [p[:2] for p in _geo_interface_positions(points.__geo_interface__)]
+        geo = 'lonlat_deg'
 
     if geo not in _GEO:
         raise ValueError(f'geo must be one of {sorted(_GEO)}, got {geo!r}')
@@ -96,6 +101,11 @@ def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
 
     if geo == 'vec3':
         return arr
+
+    # lonlat is GeoJSON axis order; swap to (lat, lng) and share the path.
+    if geo.startswith('lonlat'):
+        arr = arr[:, ::-1]
+        geo = geo.replace('lonlat', 'latlng')
 
     lat, lng = arr[:, 0], arr[:, 1]
     if geo != 'latlng_rad':

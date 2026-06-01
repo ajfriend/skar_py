@@ -79,6 +79,26 @@ def test_to_vec3_vec3_is_passthrough():
     assert np.allclose(skar.to_vec3(pts, geo='vec3'), pts)
 
 
+def test_to_vec3_lonlat_octant():
+    # (lon, lat) degrees: (0,0)->(1,0,0); (90,0)->(0,1,0); (0,90)->(0,0,1).
+    X = skar.to_vec3([[0, 0], [90, 0], [0, 90]], geo='lonlat')
+    assert np.allclose(X, np.eye(3), atol=1e-12)
+
+
+def test_to_vec3_lonlat_is_swapped_latlng():
+    lonlat = [[10.0, 80.0], [-20.0, 82.0], [40.0, 85.0]]
+    a = skar.to_vec3(lonlat, geo='lonlat')
+    b = skar.to_vec3([(lat, lon) for lon, lat in lonlat], geo='latlng_deg')
+    assert np.allclose(a, b)
+
+
+def test_to_vec3_lonlat_rad_matches_lonlat_deg():
+    lonlat_deg = np.array([[10.0, 80.0], [-20.0, 82.0], [40.0, 85.0]])
+    a = skar.to_vec3(lonlat_deg, geo='lonlat')
+    b = skar.to_vec3(np.radians(lonlat_deg), geo='lonlat_rad')
+    assert np.allclose(a, b)
+
+
 def test_to_vec3_reads_geo_interface_as_lng_lat():
     geom = _Geo({'type': 'MultiPoint', 'coordinates': [[0.0, 0.0], [90.0, 0.0]]})
     # GeoJSON (lng, lat): (0,0)->(1,0,0); (90,0)->(0,1,0).
