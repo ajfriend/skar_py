@@ -343,6 +343,26 @@ def test_plot_cone_rejects_non_converged():
         skar.plot_cone(bad, _Geo(_POLE_POLY))
 
 
+def test_project_to_cone_returns_ellipse_enclosing_points():
+    r = skar.solve(_Geo(_POLE_POLY))
+    verts = skar.to_vec3([p[:2] for p in _POLE_POLY['coordinates'][0]], geo='lonlat')
+    xy, semi = skar.project_to_cone(r, verts, up=None, scale=1.0)
+    assert xy.shape == (len(verts), 2) and semi.shape == (2,)
+    # every projected vertex sits inside the cross-section ellipse
+    inside = (xy[:, 0] / semi[0]) ** 2 + (xy[:, 1] / semi[1]) ** 2
+    assert np.all(inside <= 1.0 + 1e-6)
+    # the ellipse's axis ratio is the cone aspect ratio
+    assert math.isclose(semi[0] / semi[1], r.aspect_ratio, rel_tol=1e-9)
+
+
+def test_project_to_cone_rejects_non_converged():
+    pts = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float)
+    pts /= np.linalg.norm(pts, axis=1, keepdims=True)
+    bad = skar.solve(pts, geo='vec3')  # tetrahedron -> Infeasible
+    with pytest.raises(TypeError, match='Converged'):
+        skar.project_to_cone(bad, np.eye(3))
+
+
 def test_invalid_geo():
     with pytest.raises(ValueError, match='geo must be'):
         skar.solve(OCTANT_DEG, geo='xyz')

@@ -50,7 +50,6 @@ A5_RES = a5.MAX_RESOLUTION  # currently 30
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 N_BINS = 60
 DPI = 200
-EARTH_R_M = 6_371_008.8     # scale gnomonic (dimensionless) coords to metres
 
 SYSTEMS = ['h3', 's2', 'a5']
 SYS_LABEL = {'h3': 'H3 r15', 's2': 'S2 L30', 'a5': 'A5 r30'}
@@ -173,25 +172,10 @@ def plot_histograms(results):
 
 
 def draw_cell(ax, rec, color):
-    """Gnomonic-project a cell at its cone axis and overlay the enclosing
-    ellipse, major axis horizontal.
-
-    The cone is the second-order cone {x : ‖A x‖ <= b·x}. Working in the
-    eigenbasis Q (b = Q[:, 0], tangent eigenvectors U = Q[:, 1:]), the
-    cross-section { y : sigma1^2 y0^2 + sigma2^2 y1^2 = 1 - sigma0^2 } is
-    already axis-aligned, so the semi-axes are sqrt(2/3)/sigma[1:] with no
-    extra rotation — exactly why exposing Q/sigma pays off here.
-    """
-    r = rec['result']
-    Q, sigma = r.Q, r.sigma
-    b, U = Q[:, 0], Q[:, 1:]
-
-    y = (rec['verts'] @ U) / (rec['verts'] @ b)[:, None]   # gnomonic projection
-    budget = 1.0 - sigma[0] ** 2                           # = 2/3
-    semi = np.sqrt(budget) / sigma[1:] * EARTH_R_M         # (major, minor)
-
-    y_m = y * EARTH_R_M
-    ring = np.vstack([y_m, y_m[:1]])
+    """Draw a cell's boundary + enclosing ellipse, major axis horizontal."""
+    # up=None: no north-up flip (these cells aren't oriented to geographic north).
+    xy, semi = skar.project_to_cone(rec['result'], rec['verts'], up=None)
+    ring = np.vstack([xy, xy[:1]])
     t = np.linspace(0.0, 2.0 * np.pi, 400)
     ax.plot(ring[:, 0], ring[:, 1], '-o', color=color, lw=1.3, ms=4, label='cell')
     ax.plot(semi[0] * np.cos(t), semi[1] * np.sin(t), '-', color='0.25', lw=1.5,
