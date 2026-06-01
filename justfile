@@ -1,9 +1,10 @@
-# Non-editable install (the wheel is exercised as shipped). uv won't pick up
-# a source change on its own, so `test` rebuilds explicitly via `reinstall`:
-# a cold ReleaseFast Zig build + Cython compile, ~4s. The build backend is
-# reused from the venv (pyproject [tool.uv] no-build-isolation) rather than
-# re-staged into a fresh isolated env each time (~5s saved). No `uv cache
-# clean` — it adds nothing and once stalled 300s on the uv lock.
+# Non-editable install (the wheel is exercised as shipped). uv won't pick up a
+# source change on its own, so `test` rebuilds explicitly via `reinstall`: a
+# cold ReleaseFast Zig build + Cython compile. `--no-build-isolation-package` +
+# the `build` group reuse the backend from the venv (~4s) instead of staging a
+# fresh isolated build env each time (~9s). These are *local* flags — CI and
+# `uv build` use normal isolation. No `uv cache clean` (it once stalled 300s on
+# the uv lock and reuses nothing).
 export UV_NO_EDITABLE := "1"
 export UV_OFFLINE := "0"  # toggle on when offline to avoid failures
 
@@ -11,7 +12,7 @@ _:
     just --list
 
 reinstall:
-    uv sync --reinstall-package skar
+    uv sync --reinstall-package skar --no-build-isolation-package skar --group build
 
 # rebuild (pick up source changes) + run the suite
 test: reinstall ci-test

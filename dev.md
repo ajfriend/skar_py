@@ -128,12 +128,14 @@ the source changes, so `just test` runs `reinstall`
 *rebuild machinery*, since the Zig compile itself is never the bottleneck
 (a cold ReleaseFast build is ~4s, a warm one ~0.07s):
 
-- **`[tool.uv] no-build-isolation-package = ["skar"]`** plus the build
-  backend (`meson-python`, `ninja`, `cython`, `ziglang`) in the `dev`
-  group. Each `--reinstall-package` reuses those tools from the venv
-  instead of staging a fresh isolated build env — which would re-install
-  ziglang (~50 MB) and friends every time, ~5s of pure overhead (~9s total
-  vs ~4s).
+- **`reinstall` passes `--no-build-isolation-package skar --group build`.**
+  The `build` group holds the backend (`meson-python`, `ninja`, `cython`,
+  `ziglang`); `--reinstall-package` then reuses those from the venv instead
+  of staging a fresh isolated build env — which would re-install ziglang
+  (~50 MB) and friends every time, ~5s of overhead (~9s total vs ~4s). These
+  are **local flags only**: CI and `uv build` (sdist/wheels) build `skar`
+  with normal isolation, so the package never carries a `no-build-isolation`
+  setting (an earlier `[tool.uv]` version of this broke `uv build` in CI).
 - **no `uv cache clean`** in `reinstall`. `--reinstall-package` already
   forces a rebuild, so the clean buys nothing — and it serializes on uv's
   global cache lock, which once stalled for the full 300s lock timeout when
@@ -141,13 +143,13 @@ the source changes, so `just test` runs `reinstall`
   genuinely slow run.
 
 `ci-test` uses `uv run --no-sync` so the already-built env (from `reinstall`
-locally, or `uv sync` in CI) isn't rebuilt a second time.
+locally, or `uv sync` in CI) isn't rebuilt a second time. CI's `test`
+workflow sets `UV_NO_EDITABLE=1` so its `uv sync` also installs non-editable.
 
 An *editable* install would cut this to ~0.5s via meson-python's
 rebuild-on-import, but that hook shells out to `ninja` and is fragile under
-uv's build isolation (stale `ninja` path → `FileNotFoundError`); it needs
-the same `no-build-isolation` setup just to work. Not worth the
-rebuild-on-import machinery for a ~4s gap — see `todo.md`.
+uv's build isolation (stale `ninja` path → `FileNotFoundError`); not worth
+the machinery for a ~4s gap — see `todo.md`.
 
 ## The skar_zig dependency: release pin vs. local path
 

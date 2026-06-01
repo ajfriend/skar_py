@@ -44,14 +44,12 @@ Issues = "https://github.com/ajfriend/skar_py/issues"
 "Upstream Zig package" = "https://github.com/ajfriend/skar_zig"
 
 [dependency-groups]
-# pytest/matplotlib for the suite; meson-python/ninja/cython/ziglang are
-# skar's build backend, kept in the venv so a `--reinstall-package` rebuild
-# reuses them (no-build-isolation) instead of re-staging a fresh isolated
-# build env (~5s of copying ziglang etc.) every time. See [tool.uv].
-dev = [
-    "pytest>=8", "pytest-cov>=5", "matplotlib>=3",
-    "meson-python>=0.16", "ninja", "cython>=3.0", "ziglang>=0.15.2",
-]
+dev = ["pytest>=8", "pytest-cov>=5", "matplotlib>=3"]  # matplotlib: test plot_cone
+# skar's build backend. Not a default group — `just reinstall` syncs it and
+# passes `--no-build-isolation-package skar` so a rebuild reuses these from the
+# venv (~4s) instead of re-staging a fresh isolated build env (~9s). CI and
+# `uv build` don't sync it; they use normal build isolation.
+build = ["meson-python>=0.16", "ninja", "cython>=3.0", "ziglang>=0.15.2"]
 lab = ["jupyterlab>=4", "matplotlib>=3", "h3", "geopandas>=1", "pyogrio", "s2sphere", "pya5"]
 # scripts/dggs/survey.py — DGGS aspect-ratio survey deps.
 dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "pya5"]
@@ -83,11 +81,3 @@ test-requires = ["pytest", "numpy"]
 # Override pyproject.toml's addopts (which assume pytest-cov) — the
 # coverage report is for local dev, not the per-wheel test envs.
 test-command = "pytest {project}/tests -o addopts="
-
-[tool.uv]
-# Build skar against the project venv (whose `dev` group has the build
-# backend) rather than a throwaway isolated env. Non-editable still, so
-# `just test` rebuilds explicitly via `--reinstall-package` — but each
-# rebuild reuses the venv's ziglang/meson/cython instead of re-staging
-# them (~4s vs ~9s). Not editable: no rebuild-on-import hook.
-no-build-isolation-package = ["skar"]

@@ -1,11 +1,22 @@
 import math
 
-import matplotlib
-matplotlib.use('Agg')  # headless: no display needed to test plot_cone
 import numpy as np
 import pytest
 
 import skar
+
+# matplotlib is an optional dependency (only plot_cone needs it). In the
+# minimal wheel/sdist test envs it's absent, so skip the plot_cone tests there;
+# project_to_cone is pure NumPy and always runs.
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # headless: no display needed
+    HAVE_MATPLOTLIB = True
+except ImportError:
+    HAVE_MATPLOTLIB = False
+
+requires_matplotlib = pytest.mark.skipif(
+    not HAVE_MATPLOTLIB, reason='plot_cone needs matplotlib')
 
 
 # Octant: north pole + two equator points 90° apart. By 3-fold
@@ -282,6 +293,7 @@ _POLE_POLY = {
 }
 
 
+@requires_matplotlib
 def test_plot_cone_draws_outline_and_ellipse():
     geom = _Geo(_POLE_POLY)
     r = skar.solve(geom)
@@ -292,6 +304,7 @@ def test_plot_cone_draws_outline_and_ellipse():
     assert ax.get_xlabel() == 'major axis (m)' and ax.get_ylabel() == 'minor axis (m)'
 
 
+@requires_matplotlib
 def test_plot_cone_up_flips_180_degrees():
     # Elongated equatorial quad (wide in lon): the cone axis is off-pole and
     # clearly non-circular, so world north has a real tangent component along
@@ -308,6 +321,7 @@ def test_plot_cone_up_flips_180_degrees():
     plt.close(fig)
 
 
+@requires_matplotlib
 def test_plot_cone_handles_multipolygon_and_feature():
     # MultiPolygon (two caps) wrapped in a Feature — exercises the Feature and
     # MultiPolygon ring branches; expect two outlines + the ellipse.
@@ -321,6 +335,7 @@ def test_plot_cone_handles_multipolygon_and_feature():
     assert len(ax.lines) == 3
 
 
+@requires_matplotlib
 def test_plot_cone_handles_multipoint_path():
     geom = _Geo({'type': 'MultiPoint', 'coordinates': [[0, 80], [90, 80], [180, 82]]})
     r = skar.solve(geom)
@@ -328,12 +343,14 @@ def test_plot_cone_handles_multipoint_path():
     assert len(ax.lines) == 2  # one path + the ellipse
 
 
+@requires_matplotlib
 def test_plot_cone_rejects_unsupported_geometry():
     r = skar.solve(_Geo(_POLE_POLY))
     with pytest.raises(ValueError, match='unsupported'):
         skar.plot_cone(r, _Geo({'type': 'Point', 'coordinates': [10.0, 80.0]}))
 
 
+@requires_matplotlib
 def test_plot_cone_rejects_non_converged():
     pts = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float)
     pts /= np.linalg.norm(pts, axis=1, keepdims=True)
