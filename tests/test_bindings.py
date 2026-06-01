@@ -42,6 +42,7 @@ def test_octant_is_circular_cone(points, geo):
 def test_converged_exposes_orthonormal_Q():
     r = skar.solve(OCTANT_XYZ, geo='vec3')
     assert isinstance(r, skar.Converged)
+    assert isinstance(r, skar.Outcome)  # native | union supports isinstance
     assert isinstance(r.Q, np.ndarray) and r.Q.shape == (3, 3)
     assert isinstance(r.sigma, np.ndarray) and r.sigma.shape == (3,)
     # Orthonormal and right-handed.

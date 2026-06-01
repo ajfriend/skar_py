@@ -1,13 +1,12 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import ClassVar, Literal, Union
+from typing import ClassVar, Literal, get_args
 
 import numpy as np
 
 from . import _cy  # Cython extension
 
-_GEO = frozenset({'latlng', 'latlng_deg', 'latlng_rad', 'vec3'})
+Geo = Literal['latlng', 'latlng_deg', 'latlng_rad', 'vec3']
+_GEO = frozenset(get_args(Geo))
 
 
 def _ring(ring):
@@ -21,23 +20,20 @@ def _geo_interface_positions(gi):
     ``__geo_interface__``) into a flat list of positions. GeoJSON
     positions are ``[lng, lat, ...]``; the caller swaps to skar's
     ``(lat, lng)``. Polygons contribute their exterior ring only."""
-    t = gi.get('type')
-    if t == 'Feature':
-        return _geo_interface_positions(gi['geometry'])
-    coords = gi['coordinates']
-    if t in ('MultiPoint', 'LineString'):
-        return list(coords)
-    if t == 'Polygon':
-        return _ring(coords[0])
-    if t == 'MultiPolygon':
-        out = []
-        for poly in coords:
-            out.extend(_ring(poly[0]))
-        return out
-    raise ValueError(
-        f'skar: unsupported __geo_interface__ geometry type {t!r}; '
-        f'expected MultiPoint, LineString, Polygon, or MultiPolygon'
-    )
+    match gi.get('type'):
+        case 'Feature':
+            return _geo_interface_positions(gi['geometry'])
+        case 'MultiPoint' | 'LineString':
+            return list(gi['coordinates'])
+        case 'Polygon':
+            return _ring(gi['coordinates'][0])
+        case 'MultiPolygon':
+            return [pos for poly in gi['coordinates'] for pos in _ring(poly[0])]
+        case other:
+            raise ValueError(
+                f'skar: unsupported __geo_interface__ geometry type {other!r}; '
+                f'expected MultiPoint, LineString, Polygon, or MultiPolygon'
+            )
 
 
 # `solve` returns one of the three classes below — never a shared
@@ -53,7 +49,7 @@ def _geo_interface_positions(gi):
 # so these compare by identity instead.
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Converged:
     """A certified enclosing cone was found.
 
@@ -85,7 +81,7 @@ class Converged:
         return float(self.sigma[2] / self.sigma[1])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Infeasible:
     """No hemisphere contains all the input points, so no enclosing cone
     exists.
@@ -99,7 +95,7 @@ class Infeasible:
     status: ClassVar[Literal['infeasible']] = 'infeasible'
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class DidNotConverge:
     """The solver hit ``max_outer`` without certifying a cone. The last
     iterate is exposed for diagnostics / warm-start, but it is **not** a
@@ -125,14 +121,15 @@ class DidNotConverge:
 
 
 # Union of the three outcomes — use as the return annotation and for
-# `isinstance(x, Outcome)` (py>=3.10 allows isinstance on a Union alias).
-Outcome = Union[Converged, Infeasible, DidNotConverge]
+# `isinstance(x, Outcome)` (a native `|` union is a types.UnionType,
+# which supports isinstance checks on py>=3.10).
+Outcome = Converged | Infeasible | DidNotConverge
 
 
 def solve(
     points,
     *,
-    geo: str = 'latlng',
+    geo: Geo = 'latlng',
     gap_tol: float = 1e-6,
     n_hull: int = 10,
     coplanarity_tol: float = 1e-12,
@@ -231,11 +228,15 @@ def solve(
 
     if status == 'infeasible':
         return Infeasible(residual=residual)
-    sigma = np.array(sigma, dtype=np.float64)
-    Q = np.array(q, dtype=np.float64).reshape(3, 3)  # row-major Q[r, c]
-    if status == 'converged':
-        return Converged(sigma=sigma, Q=Q, gap=gap, outer_iters=outer_iters)
-    return DidNotConverge(sigma=sigma, Q=Q, gap=gap, outer_iters=outer_iters)
+
+    # converged and did_not_converge share the same payload shape.
+    cls = Converged if status == 'converged' else DidNotConverge
+    return cls(
+        sigma=np.asarray(sigma, dtype=float),
+        Q=np.asarray(q, dtype=float).reshape(3, 3),  # row-major Q[r, c]
+        gap=gap,
+        outer_iters=outer_iters,
+    )
 
 
 __all__ = [
