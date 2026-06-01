@@ -62,8 +62,20 @@ for name, geom in zip(gdf['ADMIN'], gdf.geometry):
 ```
 
 `MultiPoint`, `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
-and a `Feature` wrapping one of those are supported. See
-`scripts/states/` and `scripts/countries/` for end-to-end examples.
+and a `Feature` wrapping one of those are supported.
+
+To visualize the fit, `skar.plot_cone(result, geom)` draws the outline
+gnomonic-projected at the cone axis with the enclosing ellipse overlaid
+— defaulting to north-up, scaled to metres, with labelled axes (needs
+matplotlib — `pip install skar[plot]`):
+
+```python
+skar.plot_cone(r, geom, title='Chile')  # a finished figure from one call
+```
+
+`notebooks/country_aspect_ratio.ipynb` (open with `just lab`) is a short
+walkthrough; `scripts/states/` and `scripts/countries/` are full
+end-to-end examples.
 
 `solve` runs all of this through `skar.to_vec3(points, geo=...)`, which
 returns the `(N, 3)` array of unit vectors the solver actually sees.
@@ -112,9 +124,10 @@ the full field reference.
 ├── src/
 │   ├── cython/_cy.pyx      — Cython binding, exposes _cy.solve
 │   ├── skar/
-│   │   ├── __init__.py     — gathers the public API (solve, to_vec3, Outcome…)
+│   │   ├── __init__.py     — gathers the public API (solve, to_vec3, plot_cone, Outcome…)
 │   │   ├── convert.py      — input → (N, 3) unit vectors: to_vec3, geo-interface
 │   │   ├── outcomes.py     — Converged/Infeasible/DidNotConverge + build()
+│   │   ├── plot.py         — plot_cone (optional; needs matplotlib)
 │   │   └── solver.py       — solve(): convert → _cy.solve → build
 │   └── zig/
 │       ├── build.zig       — produces libskar.{a,lib} (static archive)

@@ -84,9 +84,10 @@ code to the matching Python exception.
 │   ├── cython/
 │   │   └── _cy.pyx         — Cython binding, exposes _cy.solve
 │   ├── skar/
-│   │   ├── __init__.py     — gathers the public API (solve, to_vec3, Outcome…)
+│   │   ├── __init__.py     — gathers the public API (solve, to_vec3, plot_cone, Outcome…)
 │   │   ├── convert.py      — input → (N, 3) unit vectors: to_vec3, geo-interface
 │   │   ├── outcomes.py     — Converged/Infeasible/DidNotConverge + build()
+│   │   ├── plot.py         — plot_cone (optional matplotlib helper)
 │   │   └── solver.py       — solve(): convert → _cy.solve → build
 │   └── zig/
 │       ├── build.zig       — produces libskar.{a,lib} (static archive)

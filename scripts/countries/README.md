@@ -11,8 +11,8 @@ just countries
 Prints the full ranking (most → least elongated) and writes one PNG per country
 to `scripts/countries/out/<slug>.png` (gitignored) — each country
 gnomonic-projected at its cone axis with the enclosing ellipse overlaid. (France
-and Chile top the ranking — French Guiana and Easter Island stretch their
-enclosing cones.)
+and Chile top the ranking — France's reaches across to French Guiana; Chile's
+mainland is extremely elongated.)
 
 ## Design
 
