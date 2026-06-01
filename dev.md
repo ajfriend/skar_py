@@ -33,22 +33,33 @@ rationale as the sibling `sparea_py` bindings.
 
 ### What the shim exposes (minimal surface)
 
-`skar.solve` returns a tagged `Outcome` union (`converged` /
+`skar.solve` (Zig) returns a tagged `Outcome` union (`converged` /
 `infeasible` / `did_not_converge`), not a single scalar. The shim
-marshals the **headline result** into C out-params:
+writes a `status` discriminator plus the per-variant payload into C
+out-params:
 
-| out-param      | converged | did_not_converge | infeasible |
-| -------------- | :-------: | :--------------: | :--------: |
-| `status`       |     ✓     |        ✓         |     ✓      |
-| `aspect_ratio` |     ✓     |   ✓ (uncertif.)  |     —      |
-| `axis` (3)     |     ✓     |        ✓         |     —      |
-| `sigma` (3)    |     ✓     |        ✓         |     —      |
-| `gap`          |     ✓     |   ✓ (uncertif.)  |     —      |
-| `outer_iters`  |     ✓     |        ✓         |     —      |
-| `residual`     |     —     |        —         |     ✓      |
+| out-param     | converged | did_not_converge | infeasible |
+| ------------- | :-------: | :--------------: | :--------: |
+| `status`      |     ✓     |        ✓         |     ✓      |
+| `sigma` (3)   |     ✓     |        ✓         |     —      |
+| `q` (9)       |     ✓     |        ✓         |     —      |
+| `gap`         |     ✓     |   ✓ (uncertif.)  |     —      |
+| `outer_iters` |     ✓     |        ✓         |     —      |
+| `residual`    |     —     |        —         |     ✓      |
 
-Fields not meaningful for a variant are left as NaN; the Python
-wrapper maps them to `None` on the `Result` dataclass.
+Outputs not meaningful for a variant are left as NaN / 0. The cone axis
+(`Q[:, 0]`) and aspect ratio (`sigma[2]/sigma[1]`) are derivable, so
+they're **not** in the ABI — they're computed Python-side.
+
+The Python wrapper turns the `status` discriminator into one of three
+classes — `Converged`, `Infeasible`, `DidNotConverge` (union alias
+`Outcome`) — each holding only its variant's fields. This mirrors the
+Zig tagged union: there is no shared object with `None`-valued fields,
+so reading e.g. `aspect_ratio` on an `Infeasible` is an `AttributeError`
+(and a static type error under `isinstance`/`match` narrowing) rather
+than a silent `None`. `aspect_ratio` is a property on `Converged` only —
+`DidNotConverge` withholds it because its iterate is uncertified, just
+as the Zig `Converged` variant alone has the `aspectRatio()` method.
 
 The variable-length active-set **certificate** (`cert.indices` /
 `cert.lambdas`) is deliberately **not** surfaced — the shim frees it
@@ -74,7 +85,7 @@ code to the matching Python exception.
 │   │   └── _cy.pyx         — Cython binding, exposes _cy.solve
 │   ├── skar/
 │   │   └── __init__.py     — Python wrapper: validates input, latlng→xyz,
-│   │                         delegates to _cy, assembles the Result
+│   │                         delegates to _cy, builds the Outcome
 │   └── zig/
 │       ├── build.zig       — produces libskar.{a,lib} (static archive)
 │       ├── build.zig.zon   — pins the skar_zig dependency

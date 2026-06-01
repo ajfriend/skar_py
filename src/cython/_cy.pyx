@@ -10,14 +10,14 @@ cdef extern from *:
     int skar_solve(const double *pts, size_t n,
                    double gap_tol, int n_hull, double coplanarity_tol,
                    unsigned int max_outer,
-                   int *out_status, double *out_aspect,
+                   int *out_status,
                    double *out_sigma, double *out_q, double *out_gap,
                    unsigned int *out_outer_iters, double *out_residual);
     """
     int skar_solve(const double *pts, size_t n,
                    double gap_tol, int n_hull, double coplanarity_tol,
                    unsigned int max_outer,
-                   int *out_status, double *out_aspect,
+                   int *out_status,
                    double *out_sigma, double *out_q, double *out_gap,
                    unsigned int *out_outer_iters, double *out_residual)
 
@@ -34,13 +34,13 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
         raise ValueError('pts must be a 2-D array of shape (N, 3)')
 
     cdef int status
-    cdef double aspect, gap, residual
+    cdef double gap, residual
     cdef double sigma[3]
     cdef double q[9]
     cdef unsigned int outer_iters
     cdef int err = skar_solve(
         &pts[0, 0], pts.shape[0], gap_tol, n_hull, coplanarity_tol, max_outer,
-        &status, &aspect, &sigma[0], &q[0], &gap, &outer_iters, &residual,
+        &status, &sigma[0], &q[0], &gap, &outer_iters, &residual,
     )
 
     if err == 1:
@@ -64,7 +64,6 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
 
     return (
         _STATUS[status],
-        aspect,
         (sigma[0], sigma[1], sigma[2]),
         (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8]),
         gap,

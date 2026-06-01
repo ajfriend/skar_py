@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar, Literal, Union
 
 import numpy as np
 
@@ -39,46 +40,93 @@ def _geo_interface_positions(gi):
     )
 
 
-# eq=False: fields hold NumPy arrays, for which the dataclass-generated
-# __eq__ (a field-wise tuple compare) raises on the ambiguous array
-# truth value. Results are compared by identity instead.
+# `solve` returns one of the three classes below — never a shared
+# object with None-valued fields. Each carries only the data meaningful
+# for its outcome, so reading e.g. `.aspect_ratio` on an `Infeasible`
+# is an immediate AttributeError (and a static type error under
+# isinstance/match narrowing) rather than a silent None. This mirrors
+# the Zig `Outcome` tagged union, where `aspectRatio()`/`Q` live only on
+# the `Converged` variant.
+#
+# eq=False on the array-bearing classes: the dataclass-generated __eq__
+# (a field-wise compare) raises on NumPy's ambiguous array truth value,
+# so these compare by identity instead.
+
+
 @dataclass(frozen=True, eq=False)
-class Result:
-    """Outcome of a `solve` call. Inspect `.status` to know which
-    fields are meaningful.
+class Converged:
+    """A certified enclosing cone was found.
 
     Attributes:
-        status: ``'converged'``, ``'infeasible'``, or
-            ``'did_not_converge'``.
-        aspect_ratio: cone cross-section aspect ratio (``>= 1``).
-            Set for ``converged`` (certified) and ``did_not_converge``
-            (uncertified last iterate); ``None`` for ``infeasible``.
-        sigma: ``(3,)`` float64 array — the eigenvalues of ``A`` paired
-            with the columns of ``Q`` (``sigma[0]`` ↔ axis,
-            ``sigma[1] <= sigma[2]`` ↔ the tangent-plane semi-axes).
-            ``None`` for ``infeasible``.
-        Q: ``(3, 3)`` float64 array — the eigenbasis of ``A``. **Column**
-            ``i`` is the unit eigenvector paired with ``sigma[i]``:
-            ``Q[:, 0]`` is the cone axis; ``Q[:, 1]`` and ``Q[:, 2]`` are
-            the cross-section ellipse's semi-axis directions.
-            Right-handed (``det(Q) = +1``). Reconstruct ``A`` as
-            ``Q @ np.diag(sigma) @ Q.T``. ``None`` for ``infeasible``.
-            Set for ``converged`` and ``did_not_converge``.
-        gap: certified duality gap for ``converged`` (``<= gap_tol``);
-            last uncertified gap for ``did_not_converge``; ``None`` for
-            ``infeasible``.
+        sigma: ``(3,)`` float64 eigenvalues of ``A``, paired with the
+            columns of ``Q``. ``sigma[0]`` is the structural axial
+            eigenvalue (``1/sqrt(3)``); ``sigma[1] <= sigma[2]`` are the
+            tangent-plane semi-axes.
+        Q: ``(3, 3)`` float64 eigenbasis of ``A``. **Column** ``i`` is
+            the unit eigenvector paired with ``sigma[i]``: ``Q[:, 0]`` is
+            the cone axis; ``Q[:, 1]`` and ``Q[:, 2]`` are the
+            cross-section ellipse's semi-axis directions. Right-handed
+            (``det(Q) = +1``). Reconstruct ``A`` as
+            ``Q @ np.diag(sigma) @ Q.T``.
+        gap: certified duality gap (``<=`` the ``gap_tol`` passed to
+            ``solve``).
         outer_iters: outer iterations the solver ran.
-        residual: witness magnitude ``‖∑ λᵢ xᵢ‖`` (near zero). Set only
-            for ``infeasible``; ``None`` otherwise.
     """
 
-    status: str
-    aspect_ratio: float | None
-    sigma: np.ndarray | None
-    Q: np.ndarray | None
-    gap: float | None
+    sigma: np.ndarray
+    Q: np.ndarray
+    gap: float
     outer_iters: int
-    residual: float | None
+    status: ClassVar[Literal['converged']] = 'converged'
+
+    @property
+    def aspect_ratio(self) -> float:
+        """Cross-section aspect ratio ``sigma[2] / sigma[1]`` (``>= 1``)."""
+        return float(self.sigma[2] / self.sigma[1])
+
+
+@dataclass(frozen=True)
+class Infeasible:
+    """No hemisphere contains all the input points, so no enclosing cone
+    exists.
+
+    Attributes:
+        residual: witness magnitude ``‖∑ λᵢ xᵢ‖``, near zero by
+            construction.
+    """
+
+    residual: float
+    status: ClassVar[Literal['infeasible']] = 'infeasible'
+
+
+@dataclass(frozen=True, eq=False)
+class DidNotConverge:
+    """The solver hit ``max_outer`` without certifying a cone. The last
+    iterate is exposed for diagnostics / warm-start, but it is **not** a
+    certified result — there is deliberately no ``aspect_ratio`` here.
+    Compute ``sigma[2] / sigma[1]`` from ``sigma`` yourself if you want
+    the uncertified estimate.
+
+    Attributes:
+        sigma: ``(3,)`` last-iterate eigenvalues (see `Converged`),
+            uncertified.
+        Q: ``(3, 3)`` last-iterate eigenbasis (see `Converged`),
+            uncertified.
+        gap: last computed duality gap — *not* certified to be below
+            ``gap_tol``; inspect alongside ``outer_iters``.
+        outer_iters: outer iterations run (``== max_outer``).
+    """
+
+    sigma: np.ndarray
+    Q: np.ndarray
+    gap: float
+    outer_iters: int
+    status: ClassVar[Literal['did_not_converge']] = 'did_not_converge'
+
+
+# Union of the three outcomes — use as the return annotation and for
+# `isinstance(x, Outcome)` (py>=3.10 allows isinstance on a Union alias).
+Outcome = Union[Converged, Infeasible, DidNotConverge]
 
 
 def solve(
@@ -89,9 +137,9 @@ def solve(
     n_hull: int = 10,
     coplanarity_tol: float = 1e-12,
     max_outer: int = 100,
-) -> Result:
+) -> Outcome:
     """Find the tightest ellipsoidal cone enclosing a point set on the
-    unit sphere, and return its aspect ratio.
+    unit sphere.
 
     Args:
         points: a sequence of points — typically a list or tuple of
@@ -126,7 +174,20 @@ def solve(
             `'did_not_converge'` result.
 
     Returns:
-        A `Result`. Check `.status` first.
+        One of `Converged`, `Infeasible`, or `DidNotConverge`
+        (collectively `Outcome`). Dispatch with `isinstance` or
+        `match`/`case`; each type exposes only the fields meaningful for
+        its outcome, so there are no `None`-valued fields to guard
+        against::
+
+            r = skar.solve(pts)
+            match r:
+                case skar.Converged():
+                    use(r.aspect_ratio, r.Q)
+                case skar.Infeasible():
+                    handle(r.residual)
+                case skar.DidNotConverge():
+                    retry(r.gap, r.outer_iters)
 
     Raises:
         ValueError: invalid `geo`, mismatched shape, fewer than 3
@@ -164,15 +225,23 @@ def solve(
         # column_stack returns a fresh C-contiguous (N, 3) f64.
         arr = np.column_stack([cl * np.cos(lng), cl * np.sin(lng), np.sin(lat)])
 
-    status, aspect, sigma, q, gap, outer_iters, residual = _cy.solve(
+    status, sigma, q, gap, outer_iters, residual = _cy.solve(
         arr, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
     )
 
     if status == 'infeasible':
-        return Result('infeasible', None, None, None, None, outer_iters, residual)
+        return Infeasible(residual=residual)
     sigma = np.array(sigma, dtype=np.float64)
     Q = np.array(q, dtype=np.float64).reshape(3, 3)  # row-major Q[r, c]
-    return Result(status, aspect, sigma, Q, gap, outer_iters, None)
+    if status == 'converged':
+        return Converged(sigma=sigma, Q=Q, gap=gap, outer_iters=outer_iters)
+    return DidNotConverge(sigma=sigma, Q=Q, gap=gap, outer_iters=outer_iters)
 
 
-__all__ = ['solve', 'Result']
+__all__ = [
+    'solve',
+    'Outcome',
+    'Converged',
+    'Infeasible',
+    'DidNotConverge',
+]

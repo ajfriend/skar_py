@@ -37,12 +37,12 @@ pub const SKAR_STATUS_DID_NOT_CONVERGE: c_int = 2;
 /// `max_outer` map straight onto `skar.SolveOptions`.
 ///
 /// On SKAR_OK, `out_status` selects which outputs are meaningful:
-///   - converged:        aspect, sigma, q, gap, outer_iters
-///   - did_not_converge: aspect, sigma, q, gap, outer_iters (uncertified)
+///   - converged:        sigma, q, gap, outer_iters
+///   - did_not_converge: sigma, q, gap, outer_iters (uncertified)
 ///   - infeasible:       residual
 /// Outputs not meaningful for the variant are left as NaN / 0. The
-/// cone axis is column 0 of `q` (q[0], q[3], q[6]), so it's not
-/// returned separately.
+/// cone axis is column 0 of `q` (q[0], q[3], q[6]) and the aspect ratio
+/// is sigma[2]/sigma[1], so neither is returned separately.
 pub export fn skar_solve(
     pts_buf: [*]const f64,
     n: usize,
@@ -51,7 +51,6 @@ pub export fn skar_solve(
     coplanarity_tol: f64,
     max_outer: c_uint,
     out_status: *c_int,
-    out_aspect: *f64,
     out_sigma: *[3]f64,
     out_q: *[9]f64,
     out_gap: *f64,
@@ -68,7 +67,6 @@ pub export fn skar_solve(
     };
 
     const nan = std.math.nan(f64);
-    out_aspect.* = nan;
     out_sigma.* = .{ nan, nan, nan };
     // Q is row-major (out_q[r*3 + c] = Q(r, c)); column i is the unit
     // eigenvector paired with sigma[i], and column 0 is the cone axis.
@@ -91,7 +89,6 @@ pub export fn skar_solve(
     switch (outcome) {
         .converged => |c| {
             out_status.* = SKAR_STATUS_CONVERGED;
-            out_aspect.* = c.aspectRatio();
             out_sigma.* = c.sigma;
             out_q.* = c.Q.m;
             out_gap.* = c.gap;
@@ -103,7 +100,6 @@ pub export fn skar_solve(
         },
         .did_not_converge => |d| {
             out_status.* = SKAR_STATUS_DID_NOT_CONVERGE;
-            out_aspect.* = d.sigma[2] / d.sigma[1];
             out_sigma.* = d.sigma;
             out_q.* = d.Q.m;
             out_gap.* = d.gap;

@@ -35,14 +35,10 @@ pts = [
 ]
 
 r = skar.solve(pts)
-if r.status == 'converged':
+if isinstance(r, skar.Converged):
     print(r.aspect_ratio)  # cross-section axis ratio (>= 1)
     print(r.Q[:, 0])       # unit cone axis (x, y, z) — first column of Q
 ```
-
-`r.sigma` is a `(3,)` array of eigenvalues and `r.Q` is the `(3, 3)`
-eigenbasis (column `i` pairs with `sigma[i]`; column 0 is the axis), so
-the enclosing ellipsoid matrix is `A = r.Q @ np.diag(r.sigma) @ r.Q.T`.
 
 Any list/tuple of points works; a NumPy array is also accepted and is
 read as an `(N, k)` array whose **rows are points** (`k` = 2 for the
@@ -62,10 +58,31 @@ r = skar.solve(poly)  # aspect ratio of the polygon's vertices
 `MultiPoint`, `LineString`, `Polygon` (exterior ring), `MultiPolygon`,
 and a `Feature` wrapping one of those are supported.
 
-`solve` returns a `Result`; inspect `.status`
-(`'converged'` / `'infeasible'` / `'did_not_converge'`) before reading
-the other fields. See the docstrings in `src/skar/__init__.py` for the
-full option and field reference.
+## Outcomes
+
+`solve` returns one of three outcome types — `Converged`, `Infeasible`,
+or `DidNotConverge` (collectively `Outcome`) — mirroring the Zig
+`Outcome` tagged union. Each carries **only** the fields meaningful for
+its outcome, so you dispatch on the type rather than guarding nullable
+fields:
+
+```python
+match skar.solve(pts):
+    case skar.Converged() as c:
+        use(c.aspect_ratio, c.Q)      # certified cone
+    case skar.Infeasible() as i:
+        handle(i.residual)            # no enclosing cone exists
+    case skar.DidNotConverge() as d:
+        retry(d.gap, d.outer_iters)   # hit the iteration cap
+```
+
+On a `Converged`, `sigma` is the `(3,)` eigenvalue array and `Q` the
+`(3, 3)` eigenbasis (column `i` pairs with `sigma[i]`; column 0 is the
+axis), so the enclosing ellipsoid matrix is
+`A = c.Q @ np.diag(c.sigma) @ c.Q.T`. `DidNotConverge` exposes the same
+`sigma`/`Q`/`gap` for diagnostics but, being uncertified, deliberately
+has no `aspect_ratio`. See the docstrings in `src/skar/__init__.py` for
+the full field reference.
 
 ## Layout
 

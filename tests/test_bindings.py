@@ -32,7 +32,7 @@ OCTANT_XYZ = np.array([
 ])
 def test_octant_is_circular_cone(points, geo):
     r = skar.solve(points, geo=geo)
-    assert r.status == 'converged'
+    assert isinstance(r, skar.Converged)
     assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-6)
     # Cone axis (first column of Q) is (1,1,1)/√3.
     axis = r.Q[:, 0]
@@ -41,6 +41,7 @@ def test_octant_is_circular_cone(points, geo):
 
 def test_converged_exposes_orthonormal_Q():
     r = skar.solve(OCTANT_XYZ, geo='vec3')
+    assert isinstance(r, skar.Converged)
     assert isinstance(r.Q, np.ndarray) and r.Q.shape == (3, 3)
     assert isinstance(r.sigma, np.ndarray) and r.sigma.shape == (3,)
     # Orthonormal and right-handed.
@@ -80,7 +81,7 @@ def test_elongated_scatter_has_aspect_above_one():
         [85.0,   0.0],
     ])
     r = skar.solve(pts)
-    assert r.status == 'converged'
+    assert isinstance(r, skar.Converged)
     assert r.aspect_ratio > 1.0
 
 
@@ -93,14 +94,14 @@ def test_primary_usage_is_a_plain_list_of_latlng_points():
         (90.0, 0.0),
     ]
     r = skar.solve(pts)
-    assert r.status == 'converged'
+    assert isinstance(r, skar.Converged)
     assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-6)
 
 
 def test_accepts_python_list_of_vec3():
     pts = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
     r = skar.solve(pts, geo='vec3')
-    assert r.status == 'converged'
+    assert isinstance(r, skar.Converged)
     assert math.isclose(r.aspect_ratio, 1.0, abs_tol=1e-6)
 
 
@@ -115,12 +116,32 @@ def test_infeasible_when_no_hemisphere_contains_points():
     ])
     pts /= np.linalg.norm(pts, axis=1, keepdims=True)
     r = skar.solve(pts, geo='vec3')
+    assert isinstance(r, skar.Infeasible)
     assert r.status == 'infeasible'
-    assert r.aspect_ratio is None
-    assert r.sigma is None
-    assert r.Q is None
-    assert r.residual is not None
     assert r.residual < 1e-6
+    # The type carries only its relevant field — there is no silent
+    # None to misuse; converged-only fields simply don't exist.
+    assert not hasattr(r, 'aspect_ratio')
+    assert not hasattr(r, 'sigma')
+    assert not hasattr(r, 'Q')
+
+
+def test_did_not_converge_exposes_uncertified_diagnostics():
+    # An unreachable gap tolerance (far below the f64 conditioning
+    # floor) forces the solver to exhaust its iteration budget.
+    pts = np.array([
+        [80.0, -40.0],
+        [82.0,   0.0],
+        [80.0,  40.0],
+        [85.0,   0.0],
+    ])
+    r = skar.solve(pts, gap_tol=1e-300, max_outer=5)
+    assert isinstance(r, skar.DidNotConverge)
+    assert r.status == 'did_not_converge'
+    assert r.Q.shape == (3, 3) and r.sigma.shape == (3,)
+    assert r.outer_iters == 5
+    # Uncertified: the aspect_ratio accessor is deliberately withheld.
+    assert not hasattr(r, 'aspect_ratio')
 
 
 class _Geo:
