@@ -8,6 +8,12 @@ narrowing) rather than a silent None. This mirrors the Zig `Outcome`
 tagged union, where ``aspectRatio()``/``Q`` live only on the `Converged`
 variant.
 
+Every outcome also carries a ``.status`` string (the snake_case class name)
+and a ``.converged`` bool (``True`` only on `Converged`) for quick checks —
+e.g. ``if r.converged:`` — without a full ``isinstance``/``match``. Note that
+`Infeasible` is a *valid* result (no cone exists), not a solver failure, which
+is why the flag is named ``converged`` rather than ``success``.
+
 ``eq=False`` on the array-bearing classes: the dataclass-generated
 ``__eq__`` (a field-wise compare) raises on NumPy's ambiguous array
 truth value, so these compare by identity instead.
@@ -44,6 +50,7 @@ class Converged:
     gap: float
     outer_iters: int
     status: ClassVar[Literal['converged']] = 'converged'
+    converged: ClassVar[bool] = True
 
     @property
     def aspect_ratio(self) -> float:
@@ -63,6 +70,7 @@ class Infeasible:
 
     residual: float
     status: ClassVar[Literal['infeasible']] = 'infeasible'
+    converged: ClassVar[bool] = False
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -88,6 +96,7 @@ class DidNotConverge:
     gap: float
     outer_iters: int
     status: ClassVar[Literal['did_not_converge']] = 'did_not_converge'
+    converged: ClassVar[bool] = False
 
 
 # Union of the three outcomes — use as the return annotation and for

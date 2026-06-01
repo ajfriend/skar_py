@@ -12,11 +12,13 @@ Public API:
 
 from .convert import to_vec3
 from .outcomes import Converged, DidNotConverge, Infeasible, Outcome
+from .plot import plot_cone
 from .solver import solve
 
 __all__ = [
     'solve',
     'to_vec3',
+    'plot_cone',
     'Outcome',
     'Converged',
     'Infeasible',

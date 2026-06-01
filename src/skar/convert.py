@@ -41,6 +41,27 @@ def _geo_interface_positions(gi):
             )
 
 
+def _geo_interface_rings(gi):
+    """Per-ring `(lon, lat)` paths for *drawing* a `__geo_interface__` object —
+    all rings (exterior + holes), each kept separate so the outline doesn't get
+    spurious segments across disjoint pieces. The drawing counterpart to
+    `_geo_interface_positions` (which flattens to the solve point set)."""
+    match gi.get('type'):
+        case 'Feature':
+            return _geo_interface_rings(gi['geometry'])
+        case 'MultiPoint' | 'LineString':
+            return [gi['coordinates']]
+        case 'Polygon':
+            return list(gi['coordinates'])
+        case 'MultiPolygon':
+            return [ring for poly in gi['coordinates'] for ring in poly]
+        case other:
+            raise ValueError(
+                f'skar: unsupported __geo_interface__ geometry type {other!r}; '
+                f'expected MultiPoint, LineString, Polygon, or MultiPolygon'
+            )
+
+
 def to_vec3(points, *, geo: Geo = 'latlng') -> np.ndarray:
     """Convert `points` to the `(N, 3)` unit-vector array the solver
     consumes.

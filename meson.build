@@ -42,6 +42,7 @@ py.install_sources(
   'src/skar/__init__.py',
   'src/skar/convert.py',
   'src/skar/outcomes.py',
+  'src/skar/plot.py',
   'src/skar/solver.py',
   subdir: 'skar',
 )

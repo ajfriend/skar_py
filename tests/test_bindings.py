@@ -1,5 +1,7 @@
 import math
 
+import matplotlib
+matplotlib.use('Agg')  # headless: no display needed to test plot_cone
 import numpy as np
 import pytest
 
@@ -43,6 +45,7 @@ def test_converged_exposes_orthonormal_Q():
     r = skar.solve(OCTANT_XYZ, geo='vec3')
     assert isinstance(r, skar.Converged)
     assert isinstance(r, skar.Outcome)  # native | union supports isinstance
+    assert r.converged is True
     assert isinstance(r.Q, np.ndarray) and r.Q.shape == (3, 3)
     assert isinstance(r.sigma, np.ndarray) and r.sigma.shape == (3,)
     # Orthonormal and right-handed.
@@ -165,6 +168,7 @@ def test_infeasible_when_no_hemisphere_contains_points():
     r = skar.solve(pts, geo='vec3')
     assert isinstance(r, skar.Infeasible)
     assert r.status == 'infeasible'
+    assert r.converged is False  # a valid result, not a failure
     assert r.residual < 1e-6
     # The type carries only its relevant field — there is no silent
     # None to misuse; converged-only fields simply don't exist.
@@ -185,6 +189,7 @@ def test_did_not_converge_exposes_uncertified_diagnostics():
     r = skar.solve(pts, gap_tol=1e-300, max_outer=5)
     assert isinstance(r, skar.DidNotConverge)
     assert r.status == 'did_not_converge'
+    assert r.converged is False
     assert r.Q.shape == (3, 3) and r.sigma.shape == (3,)
     assert r.outer_iters == 5
     # Uncertified: the aspect_ratio accessor is deliberately withheld.
@@ -266,6 +271,76 @@ def test_geo_interface_unsupported_type():
     pt = _Geo({'type': 'Point', 'coordinates': [10.0, 80.0]})
     with pytest.raises(ValueError, match='unsupported __geo_interface__'):
         skar.solve(pt)
+
+
+# A polygon around the north pole that solves cleanly — reused for plotting.
+_POLE_POLY = {
+    'type': 'Polygon',
+    'coordinates': [[
+        [0.0, 80.0], [90.0, 80.0], [180.0, 80.0], [270.0, 80.0], [0.0, 80.0],
+    ]],
+}
+
+
+def test_plot_cone_draws_outline_and_ellipse():
+    geom = _Geo(_POLE_POLY)
+    r = skar.solve(geom)
+    ax = skar.plot_cone(r, geom, up=None, title='pole cap')  # up=None opts out
+    assert len(ax.lines) == 2               # one ring outline + the ellipse
+    assert ax.get_aspect() == 1.0           # equal aspect
+    assert ax.get_title() == 'pole cap'
+    assert ax.get_xlabel() == 'major axis (m)' and ax.get_ylabel() == 'minor axis (m)'
+
+
+def test_plot_cone_up_flips_180_degrees():
+    # Elongated equatorial quad (wide in lon): the cone axis is off-pole and
+    # clearly non-circular, so world north has a real tangent component along
+    # the minor axis — up=±z give opposite 180° flips, covering both.
+    geom = _Geo({'type': 'Polygon',
+                 'coordinates': [[[-20, -5], [20, -5], [20, 5], [-20, 5], [-20, -5]]]})
+    r = skar.solve(geom)
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    skar.plot_cone(r, geom, up=(0, 0, 1), ax=ax)      # caller-supplied ax
+    up = ax.lines[0].get_ydata()
+    down = skar.plot_cone(r, geom, up=(0, 0, -1)).lines[0].get_ydata()
+    assert np.allclose(up, -down)
+    plt.close(fig)
+
+
+def test_plot_cone_handles_multipolygon_and_feature():
+    # MultiPolygon (two caps) wrapped in a Feature — exercises the Feature and
+    # MultiPolygon ring branches; expect two outlines + the ellipse.
+    geom = _Geo({'type': 'Feature', 'properties': {}, 'geometry': {
+        'type': 'MultiPolygon', 'coordinates': [
+            [[[0, 80], [90, 80], [180, 80], [0, 80]]],
+            [[[200, 82], [250, 82], [300, 82], [200, 82]]],
+        ]}})
+    r = skar.solve(geom)
+    ax = skar.plot_cone(r, geom)
+    assert len(ax.lines) == 3
+
+
+def test_plot_cone_handles_multipoint_path():
+    geom = _Geo({'type': 'MultiPoint', 'coordinates': [[0, 80], [90, 80], [180, 82]]})
+    r = skar.solve(geom)
+    ax = skar.plot_cone(r, geom)
+    assert len(ax.lines) == 2  # one path + the ellipse
+
+
+def test_plot_cone_rejects_unsupported_geometry():
+    r = skar.solve(_Geo(_POLE_POLY))
+    with pytest.raises(ValueError, match='unsupported'):
+        skar.plot_cone(r, _Geo({'type': 'Point', 'coordinates': [10.0, 80.0]}))
+
+
+def test_plot_cone_rejects_non_converged():
+    pts = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=float)
+    pts /= np.linalg.norm(pts, axis=1, keepdims=True)
+    bad = skar.solve(pts, geo='vec3')
+    assert isinstance(bad, skar.Infeasible)
+    with pytest.raises(TypeError, match='Converged'):
+        skar.plot_cone(bad, _Geo(_POLE_POLY))
 
 
 def test_invalid_geo():

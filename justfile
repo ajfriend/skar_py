@@ -16,6 +16,13 @@ test: reinstall ci-test
 ci-test:
     uv run pytest -q
 
+# Faster loop for Python-only edits: rebuild/reinstall skar but skip the
+# `uv cache clean` (so build-backend deps aren't re-staged), then test.
+# Use `just test` when the Zig/Cython layer changed.
+test-quick:
+    uv sync --reinstall-package skar
+    uv run --no-sync pytest -q
+
 # Build the wheel.
 wheel:
     uv build
