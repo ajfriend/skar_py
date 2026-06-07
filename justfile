@@ -39,25 +39,41 @@ wheel:
 lab:
     uv run --group lab jupyter lab
 
-# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution (H3/S2/A5).
-# Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
-dggs: reinstall
-    uv run --group dggs scripts/dggs/survey.py
+# The DGGS scripts depend on dggal (Ecere DGGAL) for the ISEA/IVEA/rHEALPix
+# systems. dggal/ecrt only publish an arch-broken macOS arm64 wheel (x86_64
+# dylibs inside an arm64 wheel) and there's no native arm64 eC toolchain to
+# build from source, so on Apple Silicon these run under an x86_64 (Rosetta)
+# Python 3.13 where the wheels are self-consistent (Linux wheels are correct
+# too). A dedicated env (.venv-dggs) keeps the native arm64 dev env untouched;
+# skar is rebuilt x86_64 into it via zig.
+dggs_python := "cpython-3.13-macos-x86_64"
+dggs_env := ".venv-dggs"
 
-# Recalibrate the S2/A5 resolutions that match H3 r9 cell area (skar-free).
+# Build skar (x86_64) + the dggs group into the dedicated Rosetta env.
+_dggs-sync:
+    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv sync --python {{dggs_python}} \
+        --reinstall-package skar --no-build-isolation-package skar \
+        --group build --group dggs
+
+# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution.
+# Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
+dggs: _dggs-sync
+    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/survey.py
+
+# Recalibrate the resolutions that match H3 r9 cell area (skar-free).
 # Re-run when adding a new DGGS, then bake the result into survey.py.
-calibrate: reinstall
-    uv run --group dggs scripts/dggs/calibrate.py
+calibrate: _dggs-sync
+    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/calibrate.py
 
 # Stress test: solve millions of H3 cells across all resolutions with the
 # DEFAULT solver settings and assert none return did_not_converge.
-dggs-stress: reinstall
-    uv run --group dggs scripts/dggs/dnc_stress.py
+dggs-stress: _dggs-sync
+    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_stress.py
 
-# Sweep S2/A5 across all resolutions: map the DNC boundary and flag any
+# Sweep every system across all resolutions: map the DNC boundary and flag any
 # non-monotonic / unexpected did_not_converge. Writes out/dnc_sweep.png.
-dnc-sweep: reinstall
-    uv run --group dggs scripts/dggs/dnc_sweep.py
+dnc-sweep: _dggs-sync
+    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_sweep.py
 
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.

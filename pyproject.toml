@@ -51,12 +51,19 @@ dev = ["pytest>=8", "pytest-cov>=5", "matplotlib>=3"]  # matplotlib: test plot_c
 # `uv build` don't sync it; they use normal build isolation.
 build = ["meson-python>=0.16", "ninja", "cython>=3.0", "ziglang>=0.15.2"]
 lab = ["jupyterlab>=4", "matplotlib>=3", "h3", "geopandas>=1", "pyogrio", "s2sphere", "a5_fast"]
-# scripts/dggs/survey.py + calibrate.py — DGGS survey + area-calibration deps
-# (sparea: spherical-polygon areas, used by calibrate.py to match cell sizes).
+# scripts/dggs/ — DGGS survey + area-calibration deps.
+# sparea: spherical-polygon areas, used by calibrate.py to match cell sizes.
 # a5_fast: Rust/PyO3 A5 binding, ~30x faster than the pure-Python pya5 it
-# replaced (boundaries match to ~1e-13 deg). No cp314 wheel yet, so syncing
-# this group builds it from sdist — needs a Rust toolchain (rustup) present.
-dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "a5_fast", "sparea>=0.4"]
+# replaced (boundaries match to ~1e-13 deg).
+# dggal: Ecere's DGGS Abstraction Library (BSD-3-Clause), the binding for the
+# ISEA/IVEA hex + rHEALPix systems via scripts/dggs/dggal_common.py. dggal/ecrt
+# only publish an arch-broken macOS arm64 wheel (it bundles x86_64 dylibs), and
+# no native arm64 eC toolchain exists to build from source, so on Apple Silicon
+# the DGGS scripts run under an x86_64 (Rosetta) Python 3.13 in a separate env
+# (.venv-dggs) — see the `dggs`/`calibrate`/`dnc-sweep` just targets. The
+# x86_64 marker keeps dggal out of the native arm64 dev/test resolution.
+dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "a5_fast", "sparea>=0.4",
+        "dggal; platform_machine == 'x86_64'"]
 # scripts/states + scripts/countries — geopandas-loaded vector examples.
 geo = ["matplotlib>=3", "geopandas>=1", "pyogrio"]
 

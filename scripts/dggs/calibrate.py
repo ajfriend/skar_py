@@ -26,6 +26,8 @@ import s2sphere
 
 import sparea
 
+import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
+
 # ----- knobs -------------------------------------------------------------
 N = 2_000                   # cells sampled per resolution (median is robust)
 SEED = 0xC0FFEE             # match survey.py for reproducibility
@@ -33,8 +35,12 @@ R_KM = 6371.0088            # mean Earth radius; steradian -> km^2 is R^2
 SR2KM2 = R_KM * R_KM
 
 TARGET = ('h3', 9)          # reference system + resolution
-SCAN = {'s2': range(10, 20), 'a5': range(8, 20)}  # candidate resolutions
+SCAN = {'s2': range(10, 20), 'a5': range(8, 20),
+        'isea7h': range(0, 16)}  # candidate resolutions (isea7h max level 19)
 # -------------------------------------------------------------------------
+
+# DGGAL DGGRS adapters, built once (initializes the DGGAL Application).
+_isea7h = dggal_common.Adapter('ISEA7H')
 
 
 def sample_uniform_lonlat(n, rng):
@@ -82,7 +88,11 @@ def a5_area(res, n):
     return float(np.median(a)) * SR2KM2
 
 
-AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area}
+def isea7h_area(res, n):
+    return _isea7h.area_km2(res, n, SEED)
+
+
+AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area, 'isea7h': isea7h_area}
 
 
 def main():
