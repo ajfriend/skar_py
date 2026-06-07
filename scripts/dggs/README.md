@@ -1,13 +1,18 @@
 # DGGS aspect-ratio survey
 
-For `N` random cells at the finest resolution of **H3**, **S2**, and
+For `N` random cells at a commonly-used resolution of **H3**, **S2**, and
 **A5**, compute the tightest enclosing-cone aspect ratio with `skar` and
-plot the results.
+plot the results. H3 res 9 is the reference (~0.1 km², a typical working
+resolution); S2 and A5 use the resolution whose cell area is closest to
+an H3 r9 cell — **S2 L15** (0.76×) and **A5 r14** (1.15×).
 
 ```sh
 just dggs
 # or: uv run --group dggs scripts/dggs/survey.py
 ```
+
+The matching resolutions are computed by `calibrate.py` (`just calibrate`)
+and baked into `survey.py`'s constants; re-run it when adding a new DGGS.
 
 For an interactive version with the same plots inline and a configurable
 `N`, see [`notebooks/dggs_survey.ipynb`](../../notebooks/dggs_survey.ipynb)
@@ -25,18 +30,38 @@ stats table:
 
 Single-pass and file-free. A generator streams one cell at a time as
 `(id, (M, 3) unit-vertex array)`; each is solved immediately with
-`skar.solve(..., gap_tol=1e-3)`, and only the running aggregates are
-kept — the aspect ratios (one float per cell) plus the two extreme cells
-per system. Nothing is materialized except the final PNGs.
+`skar.solve(...)` at the strict default `gap_tol=1e-6`, and only the
+running aggregates are kept — the aspect ratios (one float per cell) plus
+the two extreme cells per system. Nothing is materialized except the
+final PNGs.
 
 This is the Python port of the original Zig-repo pipeline
 (`gen_cells.py → data/*.json → aspect.zig → aspect.json → plots`),
 collapsed into one pass now that `skar.solve` is callable from Python.
 
-`gap_tol = 1e-3` (not skar's strict `1e-6`): at finest resolution the
-sub-metre S2/A5 cells hit an f64 duality-gap floor and would otherwise
-return `did_not_converge`, even though their aspect ratios are accurate.
-Solving at `1e-3` keeps the distribution complete.
+Every cell converges at the strict `1e-6` default. (A band of H3
+resolutions, r7–r10, used to stall at ~1.7e-6 and needed a relaxed
+`1e-5`; skar_zig v0.2.0 fixed it — see
+[`h3_gap_floor_report.md`](../../h3_gap_floor_report.md).)
 
 Config (`N`, `SEED`, resolutions, `GAP_TOL`, …) lives in constants at the
 top of `survey.py` — edit in place; no CLI args.
+
+## Convergence validation
+
+Two scripts exhaustively check that the solver "just works" at the strict
+default `gap_tol=1e-6` across every resolution of all three DGGS:
+
+- `dnc_sweep.py` (`just dnc-sweep`) — sweeps H3 (r0–15), S2 (L0–30), and
+  A5 (r0–30), enumerating every cell at coarse resolutions and sampling
+  heavily (S2 500k / A5+H3 100k–500k per res) at fine ones. It locates the
+  did-not-converge (DNC) boundary, flags any non-monotonic behaviour or
+  "DNC islands", dumps offending cells to `out/dnc_sweep_cells.txt`, and
+  writes `out/dnc_sweep.png` (DNC % and worst converged gap vs resolution).
+- `dnc_stress.py` (`just dggs-stress`) — a deeper H3-only stress (every
+  cell ≤ r4, all 12 pentagons per res, 500k/res above).
+
+As of skar_zig **v0.4.0**, the combined coverage is **~20M cells with zero
+unexpected DNCs**: H3 is clean across all of r0–r15, and S2/A5 only DNC at
+their finest sub-metre levels (onset L28/r28), which is the correct,
+monotonic f64 duality-gap floor — not a solver defect.
