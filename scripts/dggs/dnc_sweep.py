@@ -37,7 +37,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-import a5
+import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
 import h3
 import s2sphere
 
@@ -149,7 +149,7 @@ def a5_sample(res, n, rng):
     while done < n:
         k = min(CHUNK, n - done)
         for lon, lat in sample_uniform_lonlat(k, rng):
-            yield a5.lonlat_to_cell((float(lon), float(lat)), res)
+            yield a5.lonlat_to_cell(float(lon), float(lat), res)
         done += k
 
 

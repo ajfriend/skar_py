@@ -39,7 +39,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-import a5
+import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
 import h3
 import s2sphere
 
@@ -109,7 +109,7 @@ def iter_a5(n, seed):
     rng = np.random.default_rng(seed)
     seen = set()
     for lon, lat in sample_uniform_lonlat(n, rng):
-        cid = a5.lonlat_to_cell((float(lon), float(lat)), A5_RES)
+        cid = a5.lonlat_to_cell(float(lon), float(lat), A5_RES)
         if cid in seen:
             continue
         seen.add(cid)
