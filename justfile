@@ -11,7 +11,16 @@ export UV_OFFLINE := "0"  # toggle on when offline to avoid failures
 _:
     just --list
 
+# Self-cleaning: drop any stale *editable* install (a lingering meson-python
+# editable loader + .pth + build/ dir bakes paths into a uv build-isolation
+# temp dir that gets deleted, so `import skar` later fails). Then do the cold
+# non-editable reinstall. Leading `-` / `_rm` no-op when nothing's there.
 reinstall:
+    -uv pip uninstall skar
+    just _rm '_skar_editable_loader.py'
+    just _rm 'skar-editable.pth'
+    just _rm build
+    just _rm .zig-cache
     uv sync --reinstall-package skar --no-build-isolation-package skar --group build
 
 # rebuild (pick up source changes) + run the suite
@@ -30,19 +39,34 @@ wheel:
 lab:
     uv run --group lab jupyter lab
 
-# Run the DGGS finest-resolution aspect-ratio survey (H3/S2/A5).
+# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution (H3/S2/A5).
 # Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
-dggs:
+dggs: reinstall
     uv run --group dggs scripts/dggs/survey.py
+
+# Recalibrate the S2/A5 resolutions that match H3 r9 cell area (skar-free).
+# Re-run when adding a new DGGS, then bake the result into survey.py.
+calibrate: reinstall
+    uv run --group dggs scripts/dggs/calibrate.py
+
+# Stress test: solve millions of H3 cells across all resolutions with the
+# DEFAULT solver settings and assert none return did_not_converge.
+dggs-stress: reinstall
+    uv run --group dggs scripts/dggs/dnc_stress.py
+
+# Sweep S2/A5 across all resolutions: map the DNC boundary and flag any
+# non-monotonic / unexpected did_not_converge. Writes out/dnc_sweep.png.
+dnc-sweep: reinstall
+    uv run --group dggs scripts/dggs/dnc_sweep.py
 
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.
-states:
+states: reinstall
     uv run --group geo scripts/states/states.py
 
 # Country aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/countries/out/countries.png.
-countries:
+countries: reinstall
     uv run --group geo scripts/countries/countries.py
 
 purge:

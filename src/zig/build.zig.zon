@@ -1,12 +1,12 @@
 .{
     .name = .skar_py,
-    .version = "0.1.0",
+    .version = "0.3.0",
     .fingerprint = 0x26bd05582dbe2aa6,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .skar = .{
-            .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.1.0.tar.gz",
-            .hash = "skar-0.1.0-dHjpX6rwBACpoMpzFt6VhdOzhge7_Lw0C57WhzoSZO_1",
+            .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.3.0.tar.gz",
+            .hash = "skar-0.3.0-dHjpX7WjCQBpcNQB457W4LNTXxympkAARpg5Wj6sRWkt",
         },
     },
     .paths = .{
