@@ -27,6 +27,22 @@
 
 ## Resolved
 
+- **skar DNC on all A5 res-0 cells at strict default** — fixed in skar_zig
+  **v0.3.0** (size-gated inner-FW boost), incorporated here by bumping the
+  `src/zig/build.zig.zon` pin to v0.3.0 (and skar_py to 0.3.0). All 12 A5 res-0
+  cells now converge (~7 outer iters, gap ~9.5e-7) at the default
+  `gap_tol = 1e-6`. The `dnc_sweep.py` boundary scan is now fully monotonic for
+  both S2 and A5 — no unexpected DNCs; DNC only appears at the finest
+  resolutions (S2 onset L29, A5 onset r28) as the documented f64 floor. The
+  original diagnosis was sent to skar_zig as `a5_res0_dnc_report.md`.
+
+- **skar convergence stall on a band of H3 resolutions** — fixed in skar_zig
+  **v0.2.0** (lowered `ACTIVE_THRESH` 1e-6 → 1e-12), incorporated here by
+  bumping the `src/zig/build.zig.zon` pin to v0.2.0 (and skar_py to 0.2.0). The
+  r7–r10 band now converges at the strict `gap_tol = 1e-6`; the DGGS survey is
+  back on the 1e-6 default. The original diagnosis is in
+  [`h3_gap_floor_report.md`](h3_gap_floor_report.md).
+
 - **Fast non-editable test path** — done. `just test` is now ~4s, non-editable,
   no editable rebuild-on-import hook. Findings:
   - Zig was never the bottleneck (cold ReleaseFast ~4s, warm ~0.07s; Release ≈
