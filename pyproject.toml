@@ -6,7 +6,7 @@ build-backend = "mesonpy"
 
 [project]
 name = "skar"
-version = "0.3.0"
+version = "0.4.0"
 description = "Spherical aspect-ratio solver: tightest enclosing cone of a point set on the unit sphere."
 readme = "readme.md"
 requires-python = ">=3.11"

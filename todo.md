@@ -27,6 +27,15 @@
 
 ## Resolved
 
+- **A5 res-0 dense-boundary solve was slow** — skar_zig **v0.4.0** replaced
+  the v0.3.0 inner-FW boost with a size-gated sparse FW init: same correctness,
+  ~43× faster on the 320-point A5 res-0 cells and ~2× on large point clouds
+  (small inputs unchanged), measured on the Python side. Pinned via
+  `src/zig/build.zig.zon` v0.4.0 (skar_py 0.4.0). The unified `dnc_sweep.py`
+  (now H3+S2+A5) plus `dnc_stress.py` confirm **~20M cells, 0 unexpected DNCs**
+  across all three DGGS at the strict default; DNC only at the finest sub-metre
+  S2/A5 levels (the documented f64 floor).
+
 - **skar DNC on all A5 res-0 cells at strict default** — fixed in skar_zig
   **v0.3.0** (size-gated inner-FW boost), incorporated here by bumping the
   `src/zig/build.zig.zon` pin to v0.3.0 (and skar_py to 0.3.0). All 12 A5 res-0

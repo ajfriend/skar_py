@@ -46,3 +46,22 @@ resolutions, r7–r10, used to stall at ~1.7e-6 and needed a relaxed
 
 Config (`N`, `SEED`, resolutions, `GAP_TOL`, …) lives in constants at the
 top of `survey.py` — edit in place; no CLI args.
+
+## Convergence validation
+
+Two scripts exhaustively check that the solver "just works" at the strict
+default `gap_tol=1e-6` across every resolution of all three DGGS:
+
+- `dnc_sweep.py` (`just dnc-sweep`) — sweeps H3 (r0–15), S2 (L0–30), and
+  A5 (r0–30), enumerating every cell at coarse resolutions and sampling
+  heavily (S2 500k / A5+H3 100k–500k per res) at fine ones. It locates the
+  did-not-converge (DNC) boundary, flags any non-monotonic behaviour or
+  "DNC islands", dumps offending cells to `out/dnc_sweep_cells.txt`, and
+  writes `out/dnc_sweep.png` (DNC % and worst converged gap vs resolution).
+- `dnc_stress.py` (`just dggs-stress`) — a deeper H3-only stress (every
+  cell ≤ r4, all 12 pentagons per res, 500k/res above).
+
+As of skar_zig **v0.4.0**, the combined coverage is **~20M cells with zero
+unexpected DNCs**: H3 is clean across all of r0–r15, and S2/A5 only DNC at
+their finest sub-metre levels (onset L28/r28), which is the correct,
+monotonic f64 duality-gap floor — not a solver defect.
