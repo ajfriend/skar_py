@@ -1,9 +1,17 @@
-"""DGGS finest-resolution aspect-ratio survey.
+"""DGGS aspect-ratio survey at a commonly-used resolution.
 
-For N random cells at the finest resolution of H3, S2, and A5, compute
-the tightest enclosing-cone aspect ratio with `skar`, then plot the
-per-system distribution and the best/worst cell with its enclosing
+For N random cells at a commonly-used resolution of H3, S2, and A5,
+compute the tightest enclosing-cone aspect ratio with `skar`, then plot
+the per-system distribution and the best/worst cell with its enclosing
 ellipse.
+
+Resolution choice: H3 res 9 is the reference (~0.1 km^2, ~174 m edge —
+a typical working resolution, not the metre-scale finest). S2 and A5 are
+set to the resolution whose cell area is closest to an H3 r9 cell:
+S2 level 15 (0.76x H3 r9 area) and A5 resolution 14 (1.15x). S2/A5
+refine x4 per step, so neither lands exactly on target; these are the
+nearest in log-area. Recompute with `just calibrate` (calibrate.py) when
+adding a new DGGS, then bake the result into the constants below.
 
 Single-pass and file-free: a generator streams one cell at a time
 (`(id, unit-vertex array)`), each is solved immediately, and only the
@@ -12,12 +20,11 @@ the two extreme cells per system. Nothing is materialized to disk except
 the final PNGs. This is the Python port of the old gen -> JSON -> Zig ->
 JSON -> plot pipeline, collapsed now that `skar.solve` is callable here.
 
-Solve tolerance: gap_tol = 1e-3, not skar's strict 1e-6 default. At
-finest resolution the S2/A5 cells are sub-metre scatters at an O(1)
-point on the sphere (kappa(A) ~ 1e9), so the duality gap floors at
-~1e-4-1e-3 and many cells would return `did_not_converge` at 1e-6 — yet
-their aspect ratios are accurate regardless (input-precision-limited).
-Solving at 1e-3 lets every cell converge so the distribution is complete.
+Solve tolerance: skar's strict gap_tol = 1e-6 default. Every cell at
+these resolutions converges at 1e-6. (A band of H3 resolutions, r7-r10,
+used to stall at ~1.7e-6 and needed a relaxed 1e-5; skar_zig v0.2.0 fixed
+it by lowering the certificate active-set cutoff ACTIVE_THRESH from 1e-6
+to 1e-12 — see h3_gap_floor_report.md at repo root.)
 
 Run with:  just dggs        (or: uv run --group dggs scripts/dggs/survey.py)
 No CLI args (project convention) — edit the constants below in place.
@@ -41,18 +48,21 @@ import skar
 # ----- knobs -------------------------------------------------------------
 N = 10_000
 SEED = 0xC0FFEE
-GAP_TOL = 1e-3
+GAP_TOL = 1e-6
 
-H3_RES = 15                 # h3 supports 0..15
-S2_LEVEL = 30               # s2sphere supports 0..30
-A5_RES = a5.MAX_RESOLUTION  # currently 30
+# Resolutions matched to H3 r9 cell area (median over random cells, via
+# calibrate.py): H3 r9 ~0.110 km^2 (target); S2 L15 0.083 km^2 (0.76x);
+# A5 r14 0.127 km^2 (1.15x). Recompute with `just calibrate` if changed.
+H3_RES = 9                  # h3 supports 0..15
+S2_LEVEL = 15               # s2sphere supports 0..30
+A5_RES = 14                 # a5 supports 0..30 (a5.MAX_RESOLUTION)
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 N_BINS = 60
 DPI = 200
 
 SYSTEMS = ['h3', 's2', 'a5']
-SYS_LABEL = {'h3': 'H3 r15', 's2': 'S2 L30', 'a5': 'A5 r30'}
+SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14'}
 SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2'}
 # -------------------------------------------------------------------------
 
@@ -162,8 +172,8 @@ def plot_histograms(results):
         ax.set_title(f'{SYS_LABEL[s]}  (median {d["median"]:.4f}, max {d["max"]:.4f}, DNC {dnc[s]})',
                      fontsize=10)
         ax.grid(True, alpha=0.3)
-    axes[-1].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-3)')
-    fig.suptitle('DGGS finest-resolution aspect-ratio distributions', fontsize=12)
+    axes[-1].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)')
+    fig.suptitle('DGGS aspect-ratio distributions (~H3 r9 cell size)', fontsize=12)
     fig.tight_layout()
     out = OUT_DIR / 'histograms.png'
     fig.savefig(out, dpi=DPI)
@@ -199,7 +209,7 @@ def plot_extremes(results):
             if col == 0:
                 ax.set_ylabel(f'{SYS_LABEL[s]}\nminor axis (m)')
     axes[0, 0].legend(loc='lower right', fontsize=8)
-    fig.suptitle('DGGS finest-resolution cells: best vs worst aspect ratio\n'
+    fig.suptitle('DGGS cells (~H3 r9 cell size): best vs worst aspect ratio\n'
                  '(enclosing-cone cross-section ‖Ax‖ <= b·x; major axis horizontal)',
                  fontsize=13)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
