@@ -45,6 +45,8 @@ import s2sphere
 
 import skar
 
+import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
+
 # ----- knobs -------------------------------------------------------------
 N = 10_000
 SEED = 0xC0FFEE
@@ -52,19 +54,24 @@ GAP_TOL = 1e-6
 
 # Resolutions matched to H3 r9 cell area (median over random cells, via
 # calibrate.py): H3 r9 ~0.110 km^2 (target); S2 L15 0.083 km^2 (0.76x);
-# A5 r14 0.127 km^2 (1.15x). Recompute with `just calibrate` if changed.
+# A5 r14 0.127 km^2 (1.15x); ISEA7H r10 0.181 km^2 (1.65x — aperture-7 steps
+# by 7x, so this is the nearest level). Recompute with `just calibrate`.
 H3_RES = 9                  # h3 supports 0..15
 S2_LEVEL = 15               # s2sphere supports 0..30
 A5_RES = 14                 # a5 supports 0..30 (a5.MAX_RESOLUTION)
+ISEA7H_RES = 10             # isea7h supports 0..19 (getMaxDGGRSZoneLevel)
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 N_BINS = 60
 DPI = 200
 
-SYSTEMS = ['h3', 's2', 'a5']
-SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14'}
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2'}
+SYSTEMS = ['h3', 's2', 'a5', 'isea7h']
+SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14', 'isea7h': 'ISEA7H r10'}
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3'}
 # -------------------------------------------------------------------------
+
+# DGGAL DGGRS adapters, built once (initializes the DGGAL Application).
+_isea7h = dggal_common.Adapter('ISEA7H')
 
 
 def sample_uniform_lonlat(n, rng):
@@ -120,7 +127,18 @@ def iter_a5(n, seed):
         yield a5.u64_to_hex(cid), skar.to_vec3(latlng, geo='latlng_deg')
 
 
-ITERATORS = {'h3': iter_h3, 's2': iter_s2, 'a5': iter_a5}
+def iter_isea7h(n, seed):
+    rng = np.random.default_rng(seed)
+    seen = set()
+    for lon, lat in sample_uniform_lonlat(n, rng):
+        cid = _isea7h.zone_at(ISEA7H_RES, float(lon), float(lat))
+        if cid in seen:
+            continue
+        seen.add(cid)
+        yield _isea7h.cid_str(cid), _isea7h.verts(cid)
+
+
+ITERATORS = {'h3': iter_h3, 's2': iter_s2, 'a5': iter_a5, 'isea7h': iter_isea7h}
 
 
 def run_system(name):
@@ -198,7 +216,7 @@ def draw_cell(ax, rec, color):
 
 
 def plot_extremes(results):
-    fig, axes = plt.subplots(3, 2, figsize=(11, 13))
+    fig, axes = plt.subplots(len(SYSTEMS), 2, figsize=(11, 4.3 * len(SYSTEMS)))
     axes[0, 0].set_title('best AR (most circular)', fontsize=12, pad=10)
     axes[0, 1].set_title('worst AR', fontsize=12, pad=10)
     for row, s in enumerate(SYSTEMS):
