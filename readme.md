@@ -9,17 +9,40 @@ A thin Cython binding over a small C-ABI shim that links the upstream
 `skar` Zig package as a static archive — no separate shared library
 ships in the wheel.
 
-## Install (from source, local dev)
+## Install
+
+Not on PyPI yet — install directly from GitHub. Point pip/uv at the git
+URL, either the latest `main` or a tagged release:
+
+```sh
+# latest main
+pip install git+https://github.com/ajfriend/skar_py.git
+uv pip install git+https://github.com/ajfriend/skar_py.git
+
+# a specific tagged release
+pip install git+https://github.com/ajfriend/skar_py.git@v0.4.0
+uv pip install git+https://github.com/ajfriend/skar_py.git@v0.4.0
+```
+
+For the optional plotting helper (`skar.plot_cone`), add the `plot` extra:
+
+```sh
+pip install "skar[plot] @ git+https://github.com/ajfriend/skar_py.git"
+```
+
+That path triggers a source build: meson-python pulls the Zig toolchain
+from the `ziglang` PyPI wheel (`python -m ziglang build`), compiles the
+upstream `skar_zig` package into a static archive — fetched over the
+network from the URL pinned in `src/zig/build.zig.zon` — then cythonizes
+`src/cython/_cy.pyx` and links the result against it. No host-level Zig
+or Cython install is required (Python 3.11+).
+
+### Local development
 
 ```sh
 just test       # reinstall + run the test suite
 just reinstall  # force a clean rebuild of the Zig extension
 ```
-
-`uv sync` drives meson-python, which runs Zig (via `python -m ziglang
-build`, since `ziglang` is a build dependency), then cythonizes
-`src/cython/_cy.pyx` and links the result against the Zig static
-archive. No host-level Zig or Cython install is required.
 
 ## Usage
 
