@@ -20,7 +20,7 @@ existing H3 / S2 / A5 baselines.
 | ISEA3H   | hexagon    | ISEA       | 3        | DGGAL `ISEA3H`                     | [ ]  |
 | ISEA7H   | hexagon    | ISEA       | 7        | DGGAL `ISEA7H`                     | [x]  |
 | IVEA3H   | hexagon    | IVEA       | 3        | DGGAL `IVEA3H`                     | [ ]  |
-| IVEA7H   | hexagon    | IVEA       | 7        | DGGAL `IVEA7H`                     | [ ]  |
+| IVEA7H   | hexagon    | IVEA       | 7        | DGGAL `IVEA7H`                     | [x]  |
 | IGEO7    | hexagon    | ISEA       | 7        | DGGAL `ISEA7H_Z7`                  | [ ]  |
 | rHEALPix | quad       | HEALPix    | 3        | DGGAL `RHEALPix`                   | [ ]  |
 | ISEA4T   | triangle   | ISEA       | 4        | dggrid4py (portable DGGRID binary) | [ ]  |
@@ -70,51 +70,51 @@ is required. Do ISEA4T last.
 
 ## Where each system plugs in
 
-Adding a DGGS touches four files. All three scripts hardcode the system list,
-so each new system needs an entry in each.
+DGGAL grids (every row except ISEA4T) are driven by a single registry,
+`dggal_common.DGGAL_SYSTEMS`. **Adding one is a single row** + a calibrate run +
+docs; calibrate.py / survey.py / dnc_sweep.py / validate_corners.py all loop the
+registry, so there are no per-system functions to write.
 
-### 1. `pyproject.toml` — `dggs` dependency group (~line 59)
-Add the binding (`dggal`, and later `dggrid4py`) to the `dggs` group.
-
-### 2. `scripts/dggs/calibrate.py` — area matching
-Add `<sys>_area(res, n) -> median area in km^2` (use `sparea`, skar-free),
-register it in `AREA_FN`, add a `SCAN` range. Re-run `just calibrate`, then
-bake the printed pick into `survey.py`.
-
-### 3. `scripts/dggs/survey.py` — the survey at a matched resolution
-Add `iter_<sys>(n, seed)` yielding `(id_str, (M, 3) unit-vertex array)`,
-register in `ITERATORS`, append to `SYSTEMS`, `SYS_LABEL`, `SYS_COLOR`, and add
-the baked-in `<SYS>_RES` constant from calibrate.
-
-### 4. `scripts/dggs/dnc_sweep.py` — full cross-resolution DNC sweep
-Add the six-function adapter and register it in `SYSTEMS`:
+### 1. `dggal_common.DGGAL_SYSTEMS` — the one code edit
+Add a row:
 ```python
-'<sys>': dict(
-    count=...,      # count(res) -> int
-    enumerate=...,  # enumerate(res) -> iterator of cell ids
-    sample=...,     # sample(res, n, rng) -> iterator of cell ids
-    verts=...,      # verts(cid) -> (M, 3) unit vec3, corners only
-    cid_str=...,    # cid_str(cid) -> str
-    res_range=...,  # range of valid resolutions
-)
+'<key>': dict(cls='<DGGRSClass>', color='C<n>', res=<level>, scan=range(...)),
 ```
-Also add to `SYS_COLOR`, `SYS_LABEL`, and the system tuple in `main()`.
+`cls` = DGGAL class; `color` = next matplotlib slot; `res` = H3-r9-matched level
+(fill in after step 2); `scan` = calibrate search range.
 
-### 5. `scripts/dggs/README.md` (and repo `readme.md` if it lists systems)
-Update the system list / coverage summary.
+### 2. `just calibrate`
+calibrate.py scans the new grid automatically (it loops the registry). Read off
+the picked level and set it as the row's `res`.
 
-## Shared DGGAL helper (build during the first DGGAL system)
+### 3. `just dggs` / `just dnc-sweep`
+survey.py (label/color/iterator) and dnc_sweep.py (the six-method adapter entry
++ `res_range` from `max_level()`, color, label, `N_PER_RES`) are derived from the
+registry; `main()` iterates `SYSTEMS`. Nothing else to touch.
 
-Create `scripts/dggs/dggal_common.py` so the six DGGAL systems don't each
-re-derive the binding glue. It should:
+### 4. `validate_corners.py`
+Loops the registry, so the new grid's corners-only check runs automatically.
 
-- initialize the DGGAL `Application` **once** (`pydggal_setup`) at import;
-- given a DGGRS instance, expose: `count(level)`, `enumerate(level)`,
-  `sample(level, n, rng)`, `verts(zone) -> (M,3) unit vec3`,
-  `cid_str(zone)`, and `area(level, n)` for calibrate;
-- convert `getZoneWGS84Vertices(zone)` (WGS84 lat/lon, corners only) to unit
-  vec3 — reuse `skar.to_vec3(..., geo='latlng_deg')` with `(lat, lon)` tuples,
-  matching how the A5 adapter remaps `(lon, lat)` rings today.
+### 5. Docs
+`scripts/dggs/README.md` system list / coverage, the repo `readme.md` tree line,
+and a terse `changelog.md` bullet.
+
+> **pyproject.toml**: `dggal` is already in the `dggs` group — no change for
+> DGGAL grids. **ISEA4T is the exception**: it isn't a DGGAL DGGRS, so it comes
+> from `dggrid4py` (add that dep) with its own adapter, not a `DGGAL_SYSTEMS`
+> row.
+
+## Shared DGGAL helper — `dggal_common.py` (built)
+
+Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs/dggal_common.py`:
+
+- initializes the DGGAL `Application` **once** (`pydggal_setup`) at import
+  (with a guarded `dlopen` fallback for the broken arm64 wheel);
+- `Adapter(cls)` wraps a DGGRS and exposes `count` / `enumerate` / `sample` /
+  `verts` / `cid_str` / `max_level` / `area_km2` / `iter_sample`;
+- `latlng_ring(points)` converts DGGAL WGS84 vertices to `(lat, lon)` (corners
+  only, closing-repeat stripped) for `skar.to_vec3(..., geo='latlng_deg')`;
+- `DGGAL_SYSTEMS` is the registry the four scripts loop over (see above).
 
 Map onto the DGGAL `DGGRS` API:
 
@@ -126,29 +126,31 @@ Map onto the DGGAL `DGGRS` API:
 | `verts(zone)`     | `dggrs.getZoneWGS84Vertices(zone)` → lat/lon → vec3              |
 | `cid_str(zone)`   | `dggrs.getZoneTextID(zone)`                                      |
 
-**Unknowns to resolve while wiring the first system** (ISEA7H or ISEA3H):
-1. Exact construction of the whole-world bbox for `listZones`.
-2. The point→zone lookup for sampling (uniform lon/lat → containing zone);
-   confirm the method name in the installed binding. Fallback: `listZones` at
-   the level, then `rng`-sample the returned list (fine for coarse levels).
-3. Pentagon handling — the 12 pentagons return 5 vertices; make sure `verts`
-   and sampling don't assume 6.
-4. Confirm DGGAL's license is compatible with skar before adding the dep.
+**Unknowns — all resolved wiring ISEA7H (#7):**
+1. Whole-world bbox: `wholeWorld` global (`GeoExtent((-90,-180),(90,180))`).
+2. Point→zone: `getZoneFromWGS84Centroid(level, GeoPoint(lat, lon))`.
+3. Pentagons handled — `verts`/`iter_sample` read the returned vertex count, so
+   5-vertex pentagons and 6-vertex hexagons both work.
+4. dggal is **BSD-3-Clause** — compatible. (But its macOS arm64 wheel is
+   arch-broken; see the platform caveat above.)
 
-## Per-system recipe (repeat for each row)
+## Per-system recipe (DGGAL grids)
 
 1. Branch from `main`.
-2. Add the binding to the `dggs` group in `pyproject.toml` (first DGGAL
-   system only; ISEA4T adds `dggrid4py`).
-3. Wire the system into `calibrate.py`, run `just calibrate`, bake the picked
-   resolution into `survey.py`.
-4. Wire it into `survey.py` and `dnc_sweep.py`.
-5. Run `just dggs` and `just dnc-sweep`; confirm the new system appears, solves
-   cleanly at the matched resolution, and its DNC behaviour is monotonic (same
-   bar the documented sub-metre f64 floor).
-6. Update the READMEs.
-7. Open a PR. Per project convention, the PR carries the full detail; keep the
-   changelog terse and pointing at the PR/commit.
+2. Add one row to `dggal_common.DGGAL_SYSTEMS` (`cls`, `color`, placeholder
+   `res`, `scan`).
+3. `just calibrate` → set the row's `res` to the picked level.
+4. `just dggs` → confirm the new curve appears and solves cleanly (0 DNC) at the
+   matched resolution.
+5. Standalone-sweep the new grid (and regress an existing one) — confirm 0 DNC /
+   monotonic. Skip the ~45-min full combined sweep; its PNG is gitignored and
+   H3/S2/A5 are unchanged.
+6. `uv run … validate_corners.py` → corners-only confirmed (loops the registry).
+7. Update the READMEs + a terse `changelog.md` bullet; tick the row above.
+8. `just test`; open a PR (full detail in the PR, changelog points at it).
+
+(ISEA4T is **not** DGGAL — it follows the older per-adapter recipe with
+`dggrid4py`, so it adds the dep + its own adapter rather than a registry row.)
 
 ## First-system extra task — validate corners-only
 
@@ -160,10 +162,12 @@ compares the aspect ratio from corners vs. from
 tolerance, corners-only is confirmed empirically and we keep it everywhere.
 Record the result (a sentence in the PR / this doc) and move on.
 
-> **Result (ISEA7H).** `validate_corners.py` compared corners vs.
-> `getZoneRefinedWGS84Vertices(zone, 20)` across levels 0/1/2/3/5/8/11
-> (level 0 = the 12 pentagons): overall max ΔAR ≈ **1.6e-6**, i.e. at the
-> 1e-6 gap floor, not systematic edge-bowing. Corners-only confirmed; kept.
+> **Result (ISEA7H + IVEA7H).** `validate_corners.py` compares corners vs.
+> `getZoneRefinedWGS84Vertices(zone, 20)` across levels 0/1/2/3/5/8/11 (level 0
+> = the 12 pentagons) for every registry grid: overall max ΔAR ≈ **2e-6**, i.e.
+> at the 1e-6 gap floor, not systematic edge-bowing. Corners-only confirmed;
+> kept. New DGGAL grids are validated automatically (the script loops the
+> registry).
 
 ## Conventions (see also global CLAUDE.md + repo memory)
 

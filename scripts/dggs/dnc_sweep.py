@@ -47,8 +47,8 @@ import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
 
 # ----- knobs -------------------------------------------------------------
 SEED = 0xC0FFEE
-# random cells per sampled resolution
-N_PER_RES = {'h3': 500_000, 's2': 500_000, 'a5': 100_000, 'isea7h': 100_000}
+# random cells per sampled resolution (DGGAL grids added from the registry)
+N_PER_RES = {'h3': 500_000, 's2': 500_000, 'a5': 100_000}
 ENUMERATE_MAX = 400_000   # resolutions with <= this many cells: test all
 CHUNK = 50_000            # sampling batch size (keeps memory flat)
 NOISE_TOL = 5e-4          # monotonicity: ignore DNC-fraction dips below this
@@ -58,8 +58,8 @@ OUT_DIR = Path(__file__).resolve().parent / 'out'
 PNG = OUT_DIR / 'dnc_sweep.png'
 CELLS_FILE = OUT_DIR / 'dnc_sweep_cells.txt'
 
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3'}
-SYS_LABEL = {'h3': 'H3', 's2': 'S2', 'a5': 'A5', 'isea7h': 'ISEA7H'}
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2'}
+SYS_LABEL = {'h3': 'H3', 's2': 'S2', 'a5': 'A5'}
 # -------------------------------------------------------------------------
 
 
@@ -167,13 +167,6 @@ def a5_id(cid):
     return a5.u64_to_hex(cid)
 
 
-# ----- ISEA7H adapter (DGGAL) -------------------------------------------
-# The Adapter already exposes count/enumerate/sample/verts/cid_str in the
-# right shape, so the SYSTEMS entry references its bound methods directly —
-# no per-system wrapper functions (each future DGGAL grid is one dict entry).
-_isea7h = dggal_common.Adapter('ISEA7H')
-
-
 SYSTEMS = {
     'h3': dict(count=h3_count, enumerate=h3_enumerate, sample=h3_sample,
                verts=h3_verts, cid_str=h3_id, res_range=range(0, 16)),
@@ -181,11 +174,21 @@ SYSTEMS = {
                verts=s2_verts, cid_str=s2_id, res_range=range(0, 31)),
     'a5': dict(count=a5_count, enumerate=a5_enumerate, sample=a5_sample,
                verts=a5_verts, cid_str=a5_id, res_range=range(0, 31)),
-    'isea7h': dict(count=_isea7h.count, enumerate=_isea7h.enumerate,
-                   sample=_isea7h.sample, verts=_isea7h.verts,
-                   cid_str=_isea7h.cid_str,
-                   res_range=range(0, 20)),  # isea7h max level 19
 }
+
+
+# DGGAL systems: the Adapter exposes count/enumerate/sample/verts/cid_str in
+# the right shape, so each registry row registers as one dict of bound methods
+# (res_range spans the grid's full level range). Adding a grid is one line in
+# dggal_common.DGGAL_SYSTEMS.
+for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
+    _ad = dggal_common.Adapter(_s['cls'])
+    SYSTEMS[_k] = dict(count=_ad.count, enumerate=_ad.enumerate,
+                       sample=_ad.sample, verts=_ad.verts, cid_str=_ad.cid_str,
+                       res_range=range(0, _ad.max_level() + 1))
+    SYS_COLOR[_k] = _s['color']
+    SYS_LABEL[_k] = _s['cls']
+    N_PER_RES[_k] = 100_000
 
 
 # ----- sweep -------------------------------------------------------------
@@ -349,7 +352,7 @@ def plot(all_rows):
 
 def main():
     all_rows = {}
-    for sys in ('h3', 's2', 'a5', 'isea7h'):
+    for sys in SYSTEMS:
         t0 = time.perf_counter()
         all_rows[sys] = sweep_system(sys)
         total = sum(r['tested'] for r in all_rows[sys])

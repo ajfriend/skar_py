@@ -5,6 +5,11 @@ commit that carries the full detail.
 
 ## [Unreleased]
 
+- DGGS scripts: add **IVEA7H** and refactor the DGGAL wiring to a single
+  registry (`dggal_common.DGGAL_SYSTEMS` + `Adapter.iter_sample`) — a new DGGAL
+  grid is now one row that calibrate/survey/dnc_sweep/validate_corners all loop
+  over. IVEA7H shares ISEA7H's r10 size; slightly more circular hexagons
+  (median AR ~1.15), 0 DNC across r0–r19. (#8)
 - DGGS scripts: add **ISEA7H** (Ecere `dggal`/DGGAL) to the aspect-ratio survey
   + DNC sweep — the first DGGAL-backed grid, via a shared `dggal_common.py`
   adapter (median AR ~1.17 at the H3-r9-matched r10). dggal's macOS arm64 wheel
