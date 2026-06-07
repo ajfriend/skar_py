@@ -50,10 +50,13 @@ dev = ["pytest>=8", "pytest-cov>=5", "matplotlib>=3"]  # matplotlib: test plot_c
 # venv (~4s) instead of re-staging a fresh isolated build env (~9s). CI and
 # `uv build` don't sync it; they use normal build isolation.
 build = ["meson-python>=0.16", "ninja", "cython>=3.0", "ziglang>=0.15.2"]
-lab = ["jupyterlab>=4", "matplotlib>=3", "h3", "geopandas>=1", "pyogrio", "s2sphere", "pya5"]
+lab = ["jupyterlab>=4", "matplotlib>=3", "h3", "geopandas>=1", "pyogrio", "s2sphere", "a5_fast"]
 # scripts/dggs/survey.py + calibrate.py — DGGS survey + area-calibration deps
 # (sparea: spherical-polygon areas, used by calibrate.py to match cell sizes).
-dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "pya5", "sparea>=0.4"]
+# a5_fast: Rust/PyO3 A5 binding, ~30x faster than the pure-Python pya5 it
+# replaced (boundaries match to ~1e-13 deg). No cp314 wheel yet, so syncing
+# this group builds it from sdist — needs a Rust toolchain (rustup) present.
+dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "a5_fast", "sparea>=0.4"]
 # scripts/states + scripts/countries — geopandas-loaded vector examples.
 geo = ["matplotlib>=3", "geopandas>=1", "pyogrio"]
 

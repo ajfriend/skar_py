@@ -17,15 +17,24 @@
     the minimal wheel/sdist test envs pass.
   - Also bump `mlugg/setup-zig@v1 -> @v2` (v1 404s on the moved Zig mirror).
 
-- [ ] **Try a Rust-backed A5 binding in the DGGS survey.** A5 cell generation
-  dominates the wall-clock of `scripts/dggs/survey.py` / `dggs_survey.ipynb`
-  (~2.5s of ~2.7s for A5 at N=5000; H3 and S2 are ~0.1s each). The current
-  `pya5` package looks pure-Python; if there's a Rust-backed A5 binding (the
-  a5geo project has a Rust impl), swapping it in could make A5 as fast as the
-  others and cut the survey time several-fold. Just a dependency swap in the
-  `dggs`/`lab` groups if the API matches.
-
 ## Resolved
+
+- **Rust-backed A5 binding in the DGGS survey** — done. Swapped pure-Python
+  `pya5` for [`a5_fast`](https://github.com/afterrealism/a5_fast) (Rust/PyO3
+  over the `a5` crate) in the `dggs`/`lab` groups and all consumers
+  (`survey.py`, `calibrate.py`, `dnc_sweep.py`, `notebooks/dggs_survey.ipynb`).
+  A5 cell generation went from dominating the wall-clock to on-par with H3/S2:
+  `survey.py` A5 stage ~2.5s → ~0.15s at N=10k (whole run ~2.7s → ~0.5s),
+  ~33× on the `lonlat_to_cell`+`cell_to_boundary` path. Verified a faithful
+  drop-in first: cell ids match pya5 (2999/3000; the 1 diff is an exact-edge
+  tie-break), boundaries agree to ~2e-13°, and segment counts are identical at
+  every resolution (res-0 still 321 pts). Only API change: `lonlat_to_cell`
+  takes `(lon, lat, res)` positionally instead of pya5's `((lon, lat), res)`
+  (and the notebook's `a5.MAX_RESOLUTION` → literal `30`). Caveat: a5_fast
+  ships no cp314 wheel yet, so syncing `dggs`/`lab` builds it from sdist and
+  needs a Rust toolchain (rustup) present — same requirement applies in CI.
+  Once a5_fast ships a cp314 wheel this becomes a pure prebuilt-wheel install
+  with no Rust dependency.
 
 - **A5 res-0 dense-boundary solve was slow** — skar_zig **v0.4.0** replaced
   the v0.3.0 inner-FW boost with a size-gated sparse FW init: same correctness,

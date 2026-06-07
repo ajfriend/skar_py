@@ -20,7 +20,7 @@ No CLI args (project convention) — edit the constants below in place.
 
 import numpy as np
 
-import a5
+import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
 import h3
 import s2sphere
 
@@ -73,7 +73,7 @@ def a5_area(res, n):
     rng = np.random.default_rng(SEED)
     a = []
     for lon, lat in sample_uniform_lonlat(n, rng):
-        cid = a5.lonlat_to_cell((float(lon), float(lat)), res)
+        cid = a5.lonlat_to_cell(float(lon), float(lat), res)
         ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
         if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):
             ring = ring[:-1]
