@@ -25,8 +25,8 @@ zig-pkg/
 # uv lockfile — opt in if you want it tracked
 uv.lock
 
-# Script outputs (generated plots)
-scripts/*/out/
+# Script outputs (generated plots), at any depth (incl. explorations/out/)
+scripts/**/out/
 
 # OS
 .DS_Store
