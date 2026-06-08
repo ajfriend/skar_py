@@ -12,7 +12,6 @@ Run under the x86_64 (Rosetta) env — see ../README.md "Platform note":
         scripts/dggs/explorations/ar_histograms.py
 """
 
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -23,8 +22,7 @@ import numpy as np
 
 import skar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+from _common import dc
 
 N = 200_000
 SEED = 0xC0FFEE

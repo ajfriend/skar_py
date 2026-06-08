@@ -16,7 +16,6 @@ Run under the x86_64 (Rosetta) env — see ../README.md "Platform note":
         scripts/dggs/explorations/ar_heatmap.py
 """
 
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -25,10 +24,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-import skar
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+from _common import aspect_ratio, dc, tangent_basis
 
 RES = 10
 GRIDS = [('ISEA7H', (-58.3971, -168.80)), ('IVEA7H', (58.3971, 11.20))]
@@ -39,9 +35,7 @@ FACE_HALF = 0.7                    # tan(half-angle) ~ 35 deg
 
 
 def ar_at(ad, lon, lat):
-    z = ad.zone_at(RES, float(lon), float(lat))
-    r = skar.solve(ad.verts(z), geo='vec3')
-    return r.aspect_ratio if isinstance(r, skar.Converged) else np.nan
+    return aspect_ratio(ad.verts(ad.zone_at(RES, float(lon), float(lat))))
 
 
 def global_field(ad):
@@ -55,11 +49,7 @@ def global_field(ad):
 
 
 def face_field(ad, lat0, lon0):
-    la, lo = np.radians(lat0), np.radians(lon0)
-    c = np.array([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)])
-    e1 = np.cross([0, 0, 1.0], c)
-    e1 /= np.linalg.norm(e1)
-    e2 = np.cross(c, e1)
+    c, e1, e2 = tangent_basis(lat0, lon0)
     ts = np.linspace(-FACE_HALF, FACE_HALF, NF)
     img = np.empty((NF, NF))
     for i, y in enumerate(ts):

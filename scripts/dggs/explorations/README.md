@@ -32,6 +32,10 @@ UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
 | `dark_spots_verify.py` | Cross-checks skar's AR at a dark spot against an **independent minimum-enclosing-ellipse** (Khachiyan MVEE). They agree to ~5 decimals → **not a skar bug**: the cell is an irregular hexagon whose bounding ellipse just happens to be circular. |
 | `dark_spots_cells.py` | Plots a dark-spot cell + neighbors (orthographic) with each cell's enclosing ellipse. The grid is a valid continuous tiling of irregular hexagons; the spike cell's ellipse is circular while its neighbors' are all elongated along the seam axis. |
 
+`_common.py` holds the shared helpers these scripts import (the `dggal_common`
+re-export `dc`, plus `aspect_ratio`, `mvee`/`mvee_ratio`, `tangent_basis`,
+`ellipse_pts`, …); it isn't run directly.
+
 ## What we learned
 
 - For a small cell, the enclosing-cone AR ≈ the projection's **local Tissot

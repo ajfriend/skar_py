@@ -12,15 +12,10 @@ Run under the x86_64 (Rosetta) env — see ../README.md:
         scripts/dggs/explorations/dark_spots_verify.py
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
-import skar
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+from _common import (SPIKE_LATLON, aspect_ratio, dc, gnomonic_xy, mvee_ratio,
+                     tangent_basis_vec)
 
 RES = 10
 ad = dc.Adapter('ISEA7H')
@@ -28,49 +23,15 @@ ad = dc.Adapter('ISEA7H')
 
 def tangent_xy(z):
     v = ad.verts(z)
-    c = v.mean(0)
-    c /= np.linalg.norm(c)
-    e1 = np.cross([0, 0, 1.0], c)
-    if np.linalg.norm(e1) < 1e-9:
-        e1 = np.cross([0, 1.0, 0], c)
-    e1 /= np.linalg.norm(e1)
-    e2 = np.cross(c, e1)
-    g = v / (v @ c)[:, None]            # gnomonic about centroid
-    return np.column_stack([g @ e1, g @ e2])
+    c, e1, e2 = tangent_basis_vec(v.mean(0))    # gnomonic about cell centroid
+    return gnomonic_xy(v, c, e1, e2)
 
 
-def mvee_ratio(P, tol=1e-10):
-    """Aspect ratio (major/minor) of the min-area enclosing ellipse of P."""
-    N, d = P.shape
-    Q = np.vstack([P.T, np.ones(N)])
-    u = np.ones(N) / N
-    for _ in range(100000):
-        X = Q @ np.diag(u) @ Q.T
-        M = np.einsum('ij,ji->i', Q.T @ np.linalg.inv(X), Q)
-        j = int(np.argmax(M))
-        step = (M[j] - d - 1) / ((d + 1) * (M[j] - 1))
-        un = (1 - step) * u
-        un[j] += step
-        if np.linalg.norm(un - u) < tol:
-            u = un
-            break
-        u = un
-    c = P.T @ u
-    A = np.linalg.inv((P.T @ np.diag(u) @ P) - np.outer(c, c)) / d
-    ev = np.linalg.eigvalsh(A)
-    return float(np.sqrt(ev.max() / ev.min()))
-
-
-def skar_ar(z):
-    r = skar.solve(ad.verts(z), geo='vec3')
-    return r.aspect_ratio if isinstance(r, skar.Converged) else float('nan')
-
-
-la, lo = -71.90959, 140.97260       # a known ISEA7H spike (from dark_spots_locate)
+la, lo = SPIKE_LATLON
 print(f'{"offset":>7} {"skar":>9} {"MVEE":>9}')
 for d in (0.0, 0.05):
     z = ad.zone_at(RES, lo, la + d)
-    print(f'{d:7.2f} {skar_ar(z):9.5f} {mvee_ratio(tangent_xy(z)):9.5f}')
+    print(f'{d:7.2f} {aspect_ratio(ad.verts(z)):9.5f} {mvee_ratio(tangent_xy(z)):9.5f}')
 
 z = ad.zone_at(RES, lo, la)
 xy = tangent_xy(z)

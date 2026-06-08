@@ -13,15 +13,11 @@ geometry there). Run under the x86_64 (Rosetta) env — see ../README.md:
         scripts/dggs/explorations/dark_spots_locate.py
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
 import skar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+from _common import dc
 
 RES = 10
 ad = dc.Adapter('ISEA7H')

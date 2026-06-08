@@ -18,6 +18,8 @@ Run with:  just calibrate   (or: uv run --group dggs scripts/dggs/calibrate.py)
 No CLI args (project convention) — edit the constants below in place.
 """
 
+from functools import partial
+
 import numpy as np
 
 import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
@@ -90,12 +92,8 @@ AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area}
 
 # DGGAL systems: register an area fn + scan range from each registry row, so
 # adding a grid is one line in dggal_common.DGGAL_SYSTEMS (no per-system code).
-def _area_fn(ad):
-    return lambda res, n: ad.area_km2(res, n, SEED)
-
-
 for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
-    AREA_FN[_k] = _area_fn(dggal_common.Adapter(_s['cls']))
+    AREA_FN[_k] = partial(dggal_common.Adapter(_s['cls']).area_km2, seed=SEED)
     SCAN[_k] = _s['scan']
 
 

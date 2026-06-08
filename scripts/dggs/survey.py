@@ -31,6 +31,7 @@ No CLI args (project convention) — edit the constants below in place.
 """
 
 import time
+from functools import partial
 from pathlib import Path
 
 import matplotlib
@@ -130,18 +131,12 @@ ITERATORS = {'h3': iter_h3, 's2': iter_s2, 'a5': iter_a5}
 
 # DGGAL systems: build an adapter and register label/color/iterator from each
 # registry row, so adding a grid is one line in dggal_common.DGGAL_SYSTEMS.
-def _dggal_iter(ad, res):
-    def it(n, seed):
-        yield from ad.iter_sample(res, n, seed)
-    return it
-
-
 for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
     _ad = dggal_common.Adapter(_s['cls'])
     SYSTEMS.append(_k)
     SYS_LABEL[_k] = f"{_s['cls']} r{_s['res']}"
     SYS_COLOR[_k] = _s['color']
-    ITERATORS[_k] = _dggal_iter(_ad, _s['res'])
+    ITERATORS[_k] = partial(_ad.iter_sample, _s['res'])
 
 
 def run_system(name):

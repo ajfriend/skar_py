@@ -12,7 +12,6 @@ Run under the x86_64 (Rosetta) env — see ../README.md:
         scripts/dggs/explorations/dark_spots_cells.py
 """
 
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -25,86 +24,45 @@ from matplotlib.patches import Polygon as MPoly
 
 import skar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+from _common import (SPIKE_LATLON, aspect_ratio, dc, ellipse_pts, mvee,
+                     tangent_basis)
 
 RES = 10
 HALF = 0.007                      # bbox half-size (deg) around the spike
 R_KM = 6371.0088
-SPIKE_LATLON = (-71.90959, 140.97260)
 OUT = Path(__file__).resolve().parent / 'out' / 'dark_spots_cells.png'
 ad = dc.Adapter('ISEA7H')
 
 
-def unit(lat, lon):
-    la, lo = np.radians(lat), np.radians(lon)
-    return np.array([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo),
-                     np.sin(la)])
+def ortho(vecs, e1, e2):
+    """Orthographic projection (km) of unit vectors onto the (e1, e2) plane."""
+    return np.column_stack([(vecs @ e1) * R_KM, (vecs @ e2) * R_KM])
 
 
 def refined_xy(z, e1, e2, n=10):
     pts = ad.dggrs.getZoneRefinedWGS84Vertices(z, n)
     ring = [(float(p.lat), float(p.lon)) for p in pts]
-    v = skar.to_vec3(ring, geo='latlng_deg')
-    return np.column_stack([(v @ e1) * R_KM, (v @ e2) * R_KM])
-
-
-def corner_xy(z, e1, e2):
-    v = ad.verts(z)
-    return np.column_stack([(v @ e1) * R_KM, (v @ e2) * R_KM])
-
-
-def ar(z):
-    r = skar.solve(ad.verts(z), geo='vec3')
-    return r.aspect_ratio if isinstance(r, skar.Converged) else np.nan
-
-
-def mvee(P, tol=1e-10):
-    N, d = P.shape
-    Q = np.vstack([P.T, np.ones(N)])
-    u = np.ones(N) / N
-    for _ in range(100000):
-        X = Q @ np.diag(u) @ Q.T
-        M = np.einsum('ij,ji->i', Q.T @ np.linalg.inv(X), Q)
-        j = int(np.argmax(M))
-        step = (M[j] - d - 1) / ((d + 1) * (M[j] - 1))
-        un = (1 - step) * u
-        un[j] += step
-        if np.linalg.norm(un - u) < tol:
-            u = un
-            break
-        u = un
-    c = P.T @ u
-    A = np.linalg.inv((P.T @ np.diag(u) @ P) - np.outer(c, c)) / d
-    return c, A
-
-
-def ellipse_pts(c, A, n=120):
-    ev, V = np.linalg.eigh(np.linalg.inv(A))
-    t = np.linspace(0, 2 * np.pi, n)
-    return (V @ np.diag(np.sqrt(ev)) @ np.vstack([np.cos(t), np.sin(t)])).T + c
+    return ortho(skar.to_vec3(ring, geo='latlng_deg'), e1, e2)
 
 
 la0, lo0 = SPIKE_LATLON
 spike = ad.zone_at(RES, lo0, la0)
 spike_cid = ad.cid_str(spike)
 gc = ad.dggrs.getZoneWGS84Centroid(spike)
-clat, clon = float(gc.lat), float(gc.lon)
-c = unit(clat, clon)
-e1 = np.cross([0, 0, 1.0], c)
-e1 /= np.linalg.norm(e1)
-e2 = np.cross(c, e1)
+c, e1, e2 = tangent_basis(float(gc.lat), float(gc.lon))
 
-bbox = dc.GeoExtent((clat - HALF, clon - HALF), (clat + HALF, clon + HALF))
+bbox = dc.GeoExtent((float(gc.lat) - HALF, float(gc.lon) - HALF),
+                    (float(gc.lat) + HALF, float(gc.lon) + HALF))
 zones = list(ad.dggrs.listZones(RES, bbox))
 if not any(ad.cid_str(z) == spike_cid for z in zones):
     zones.append(spike)
 
 polys, ars, ells, spk = [], [], [], []
 for z in zones:
+    corners = ad.verts(z)                        # fetch once: AR + MVEE
     polys.append(refined_xy(z, e1, e2))
-    ars.append(ar(z))
-    cen, A = mvee(corner_xy(z, e1, e2))
+    ars.append(aspect_ratio(corners))
+    cen, A = mvee(ortho(corners, e1, e2))
     ells.append(ellipse_pts(cen, A))
     spk.append(ad.cid_str(z) == spike_cid)
 ars = np.array(ars)
