@@ -128,6 +128,22 @@ class Adapter:
                 yield self.zone_at(level, lon, lat)
             done += k
 
+    def iter_sample(self, level, n, seed):
+        """Yield `(cid_str, verts)` for the distinct cells among `n` samples.
+
+        Dedup'd survey stream: draws `n` uniform-on-sphere points, maps each to
+        its containing zone, and yields each new zone once. survey.py's
+        per-system iterator is a thin wrapper over this.
+        """
+        rng = np.random.default_rng(seed)
+        seen = set()
+        for lon, lat in sample_uniform_lonlat(n, rng):
+            zone = self.zone_at(level, lon, lat)
+            if zone in seen:
+                continue
+            seen.add(zone)
+            yield self.cid_str(zone), self.verts(zone)
+
     # ----- calibrate ----------------------------------------------------
     def area_km2(self, level, n, seed):
         """Median cell area (km^2) over `n` sampled cells, skar-free."""
@@ -137,3 +153,15 @@ class Adapter:
                          geo='latlng')
              for lon, lat in sample_uniform_lonlat(n, rng)]
         return float(np.median(a)) * SR2KM2
+
+
+# ----- registered DGGAL grids -------------------------------------------
+# One row per DGGAL system in the comparison — the single place to edit to add
+# one. `cls` is the DGGRS class name; `res` the H3-r9-matched level (from
+# calibrate.py); `scan` the calibrate search range; `color` the matplotlib
+# slot. calibrate.py / survey.py / dnc_sweep.py / validate_corners.py each loop
+# this dict to register the system, so no per-system functions are needed.
+DGGAL_SYSTEMS = {
+    'isea7h': dict(cls='ISEA7H', color='C3', res=10, scan=range(0, 16)),
+    'ivea7h': dict(cls='IVEA7H', color='C4', res=10, scan=range(0, 16)),
+}

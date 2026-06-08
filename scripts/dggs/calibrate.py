@@ -18,6 +18,8 @@ Run with:  just calibrate   (or: uv run --group dggs scripts/dggs/calibrate.py)
 No CLI args (project convention) — edit the constants below in place.
 """
 
+from functools import partial
+
 import numpy as np
 
 import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
@@ -35,12 +37,9 @@ R_KM = 6371.0088            # mean Earth radius; steradian -> km^2 is R^2
 SR2KM2 = R_KM * R_KM
 
 TARGET = ('h3', 9)          # reference system + resolution
-SCAN = {'s2': range(10, 20), 'a5': range(8, 20),
-        'isea7h': range(0, 16)}  # candidate resolutions (isea7h max level 19)
+SCAN = {'s2': range(10, 20), 'a5': range(8, 20)}  # candidate resolutions
+# (DGGAL systems add their own SCAN ranges from the registry below.)
 # -------------------------------------------------------------------------
-
-# DGGAL DGGRS adapters, built once (initializes the DGGAL Application).
-_isea7h = dggal_common.Adapter('ISEA7H')
 
 
 def sample_uniform_lonlat(n, rng):
@@ -88,11 +87,14 @@ def a5_area(res, n):
     return float(np.median(a)) * SR2KM2
 
 
-def isea7h_area(res, n):
-    return _isea7h.area_km2(res, n, SEED)
+AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area}
 
 
-AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area, 'isea7h': isea7h_area}
+# DGGAL systems: register an area fn + scan range from each registry row, so
+# adding a grid is one line in dggal_common.DGGAL_SYSTEMS (no per-system code).
+for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
+    AREA_FN[_k] = partial(dggal_common.Adapter(_s['cls']).area_km2, seed=SEED)
+    SCAN[_k] = _s['scan']
 
 
 def main():

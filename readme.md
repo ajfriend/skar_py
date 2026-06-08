@@ -157,7 +157,7 @@ the full field reference.
 │       ├── build.zig.zon   — pins the skar_zig dependency
 │       └── c_api.zig       — pub export fn skar_solve
 ├── scripts/                — examples (run via `just dggs|states|countries`)
-│   ├── dggs/               — H3/S2/A5/ISEA7H aspect-ratio survey + DNC sweep
+│   ├── dggs/               — H3/S2/A5/ISEA7H/IVEA7H aspect-ratio survey + sweep
 │   ├── states/             — US-state aspect ratios (geopandas + skar)
 │   └── countries/          — country aspect ratios (geopandas + skar)
 └── tests/test_bindings.py
