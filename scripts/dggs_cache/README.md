@@ -17,7 +17,7 @@ cells/            generation — one PEP 723 / uv-run script per DGGS + the cach
 survey.py         per-system aspect-ratio survey (-> out/histograms.png, extremes.png)
 calibrate.py      match S2/A5/DGGAL resolutions to an H3 r9 cell by area
 dnc_check.py      DNC invariants: working resolutions clean + DNC only at the
-                  finest, monotone (one pass/fail check, every system)
+                  finest, monotone (pass/fail, every system; -> out/dnc_check.png)
 explorations/     ar_histograms.py, ar_vs_pca.py (cache-reading)
 ```
 
