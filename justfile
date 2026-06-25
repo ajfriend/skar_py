@@ -88,18 +88,12 @@ dggs: reinstall
 calibrate:
     uv run scripts/dggs_cache/calibrate.py
 
-# Stress/regression gate: assert every system converges at its working
-# resolutions and coarser (default solver settings). Reads the small cell sets
-# (run `just gen-cells` first); native (skar + the cells group), no Rosetta.
-dggs-stress: reinstall
-    uv run --group cells scripts/dggs_cache/dnc_stress.py
-
-# Sweep every system across all resolutions: map the DNC boundary and flag any
-# non-monotonic / unexpected did_not_converge. Reads the small cell sets (run
-# `just gen-cells` first); native (skar + the cells group), no Rosetta. Writes
-# out/dnc_sweep.png.
-dnc-sweep: reinstall
-    uv run --group cells scripts/dggs_cache/dnc_sweep.py
+# Check the DNC invariants across every DGGS / resolution: working resolutions
+# clean, and DNC only at the finest sub-metre levels (monotone, no islands).
+# Reads the cell sets (`just gen-cells` first); native (skar + the cells group),
+# no Rosetta. Exits non-zero on a regression.
+dnc-check: reinstall
+    uv run --group cells scripts/dggs_cache/dnc_check.py
 
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.

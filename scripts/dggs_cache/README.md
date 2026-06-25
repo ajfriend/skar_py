@@ -16,8 +16,8 @@ cells/            generation — one PEP 723 / uv-run script per DGGS + the cach
   out/              the Parquet cell sets (gitignored): {dggs}_r{res}.parquet
 survey.py         per-system aspect-ratio survey (-> out/histograms.png, extremes.png)
 calibrate.py      match S2/A5/DGGAL resolutions to an H3 r9 cell by area
-dnc_sweep.py      DNC fraction vs resolution, every system
-dnc_stress.py     regression gate: assert convergence at the working resolutions
+dnc_check.py      DNC invariants: working resolutions clean + DNC only at the
+                  finest, monotone (one pass/fail check, every system)
 explorations/     ar_histograms.py, ar_vs_pca.py (cache-reading)
 ```
 
@@ -27,8 +27,7 @@ explorations/     ar_histograms.py, ar_vs_pca.py (cache-reading)
 just gen-cells     # generate all the Parquet (run once; ~2 min, dggal under Rosetta)
 just dggs          # survey -> out/histograms.png + extremes.png
 just calibrate     # area-match resolutions (pick -> bake into _common.TARGET_RES)
-just dnc-sweep     # DNC boundary across all resolutions
-just dggs-stress   # assert the working resolutions converge
+just dnc-check     # assert the DNC invariants (clean working res, monotone)
 ```
 
 Each analysis is a plain `load_cells(dggs, res)` over the cache + `skar.solve`;

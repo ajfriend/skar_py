@@ -10,7 +10,7 @@ Each generator writes **one file per resolution**, from `0` up to the system's
 finest. The per-resolution budget is dense up to the system's working (target)
 resolution — `N_BIG` (~100k) cells, where the survey and AR explorations want
 lots of cells — and thin beyond it — `N_SMALL` (~25k), where only the
-`dnc_sweep`/`calibrate` tests read and coverage matters more than count.
+`dnc_check`/`calibrate` tests read and coverage matters more than count.
 (Keeping the deep tail thin is what keeps generation fast; dggal samples every
 cell under Rosetta.) At each resolution, if the whole resolution has `<= n`
 cells it enumerates them all (exact, complete — coarse resolutions saturate long

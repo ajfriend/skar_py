@@ -1,12 +1,13 @@
-"""Shared DGGAL binding glue for the DGGS survey scripts.
+"""Shared DGGAL binding glue for the live DGGS analyses.
 
 DGGAL (Ecere's Discrete Global Grid Abstraction Library, `pip install dggal`,
 BSD-3-Clause) exposes many DGGRSs through a single `DGGRS` API. This module
 initializes the DGGAL `Application` once at import and wraps a DGGRS instance in
-the adapter shape survey.py / calibrate.py / dnc_sweep.py expect: count /
-enumerate / sample / verts / cid_str (+ area_km2 for calibrate). Each new DGGAL
-system is then a one-liner: `Adapter('<DGGRSClass>')` (e.g. 'ISEA7H', 'ISEA3H',
-'IVEA7H', 'rHEALPix').
+an `Adapter` (count / enumerate / sample / verts / cid_str / area_km2 / edge
+refinement) used by validate_corners.py and the grid/neighbor explorations.
+(The cache pipeline doesn't import this — gen_dggal inlines the slice it needs.)
+Each new DGGAL system is a one-liner: `Adapter('<DGGRSClass>')` (e.g. 'ISEA7H',
+'ISEA3H', 'IVEA7H', 'rHEALPix').
 
 Vertices come back corners-only as an `(M, 3)` unit-vec3 array (M = 6 for
 hexagons, 5 for the 12 pentagons), matching the H3/S2/A5 adapters — no repeated

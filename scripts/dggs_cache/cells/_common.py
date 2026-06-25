@@ -48,7 +48,7 @@ SEED = 0xC0FFEE
 # keeps generation fast — dggal samples every cell under Rosetta.
 N_BIG, N_SMALL = 100_000, 25_000
 # Working ("target") resolution per system: the finest in actual use, matched to
-# an H3 r9 cell by calibrate.py. Used by the readers (survey, dnc_stress,
+# an H3 r9 cell by calibrate.py. Used by the readers (survey, dnc_check,
 # calibrate's anchor) and by generation to pick N_BIG vs N_SMALL per resolution.
 TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
 # -------------------------------------------------------------------------
