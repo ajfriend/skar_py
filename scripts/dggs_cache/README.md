@@ -11,9 +11,9 @@ edge refinement, grid/neighbor explorations — live in `../dggs_old/`.)
 cells/            generation — one PEP 723 / uv-run script per DGGS + the cache core
   _common.py        schema, generate(), load_cells(), and the pipeline config
                     (SEED, N_BIG/N_SMALL, TARGET_RES)
-  gen_{h3,s2,a5,dggal}.py
+  gen_{h3,s2,a5,dggal}.py   (gen_dggal inlines the bit of the DGGAL engine it
+                            needs; the fuller glue is in ../dggs_old/)
   out/              the Parquet cell sets (gitignored): {dggs}_r{res}.parquet
-dggal_common.py   live DGGAL engine — used only by gen_dggal to *produce* Parquet
 survey.py         per-system aspect-ratio survey (-> out/histograms.png, extremes.png)
 calibrate.py      match S2/A5/DGGAL resolutions to an H3 r9 cell by area
 dnc_sweep.py      DNC fraction vs resolution, every system
