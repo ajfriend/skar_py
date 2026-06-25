@@ -22,8 +22,8 @@ SEED = 0xC0FFEE
 # -------------------------------------------------------------------------
 
 
-def zone_at(res, lon, lat):
-    cid = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lon))
+def latlng_to_cell(res, lat, lng):
+    cid = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lng))
     if res != 30:
         cid = cid.parent(res)
     return cid.id()  # int, hashable
@@ -42,7 +42,7 @@ def cid_str(zid):
     return format(zid, '016x')
 
 
-def ring_of(zid):
+def cell_boundary(zid):
     cell = s2sphere.Cell(s2sphere.CellId(zid))
     ring = []
     for i in range(4):
@@ -54,5 +54,5 @@ def ring_of(zid):
 if __name__ == '__main__':
     _common.generate_levels(
         's2', TARGET_LEVEL, N, SEED,
-        zone_at=zone_at, cid_str=cid_str, ring_of=ring_of,
+        latlng_to_cell=latlng_to_cell, cid_str=cid_str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

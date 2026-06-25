@@ -39,9 +39,9 @@ if __name__ == '__main__':
         ad = dc.Adapter(row['cls'])
         _common.generate_levels(
             name, row['res'], N, SEED,
-            zone_at=lambda res, lon, lat, _ad=ad: _ad.zone_at(res, lon, lat),
+            latlng_to_cell=lambda res, lat, lng, _ad=ad: _ad.zone_at(res, lng, lat),
             cid_str=ad.cid_str,
-            ring_of=ad.ring_latlng,
+            cell_boundary=ad.ring_latlng,
             count_at=lambda res, _ad=ad: _ad.count(res),
             enumerate_at=lambda res, _ad=ad: _ad.enumerate(res),
         )

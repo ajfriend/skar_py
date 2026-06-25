@@ -22,8 +22,8 @@ SEED = 0xC0FFEE
 # -------------------------------------------------------------------------
 
 
-def zone_at(res, lon, lat):
-    return h3.latlng_to_cell(lat, lon, res)
+def latlng_to_cell(res, lat, lng):
+    return h3.latlng_to_cell(lat, lng, res)
 
 
 def count_at(res):
@@ -39,12 +39,12 @@ def enumerate_at(res):
             yield from h3.cell_to_children(c0, res)
 
 
-def ring_of(cid):
+def cell_boundary(cid):
     return h3.cell_to_boundary(cid)  # [(lat, lng), ...] degrees, corners only
 
 
 if __name__ == '__main__':
     _common.generate_levels(
         'h3', TARGET_RES, N, SEED,
-        zone_at=zone_at, cid_str=str, ring_of=ring_of,
+        latlng_to_cell=latlng_to_cell, cid_str=str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

@@ -65,7 +65,7 @@ def cells_path(dggs, res, n, seed):
     return OUT_DIR / f'{dggs}_r{res}_n{n}_s{seed:08x}.parquet'
 
 
-def generate(dggs, res, n, seed, *, zone_at, cid_str, ring_of,
+def generate(dggs, res, n, seed, *, latlng_to_cell, cid_str, cell_boundary,
              count_at=None, enumerate_at=None):
     """Build one `(dggs, res)` cell set and write it to Parquet.
 
@@ -76,9 +76,9 @@ def generate(dggs, res, n, seed, *, zone_at, cid_str, ring_of,
     deduped to distinct cells.
 
     Callbacks (one DGGS library each):
-        zone_at(res, lon, lat) -> z   native, hashable cell id for the point
+        latlng_to_cell(res, lat, lng) -> z   native, hashable cell id for the point
         cid_str(z)             -> str text id stored in the file
-        ring_of(z)             -> sequence of (lat, lng) degree pairs (open ring)
+        cell_boundary(z)             -> sequence of (lat, lng) degree pairs (open ring)
         count_at(res)          -> int total cells at the resolution (optional)
         enumerate_at(res)      -> iterable of native ids (optional)
 
@@ -91,7 +91,7 @@ def generate(dggs, res, n, seed, *, zone_at, cid_str, ring_of,
         rng = np.random.default_rng(seed)
         seen, zones = set(), []
         for lon, lat in sample_uniform_lonlat(n, rng):
-            z = zone_at(res, float(lon), float(lat))
+            z = latlng_to_cell(res, float(lat), float(lon))
             if z not in seen:
                 seen.add(z)
                 zones.append(z)
@@ -99,9 +99,9 @@ def generate(dggs, res, n, seed, *, zone_at, cid_str, ring_of,
 
     # Sort by cid for a canonical, deterministic row order (independent of
     # sampling order): enables Parquet cid page-stats / range pushdown, and lets
-    # DELTA_BYTE_ARRAY prefix-compress the now-sorted ids. ring_of is called
+    # DELTA_BYTE_ARRAY prefix-compress the now-sorted ids. cell_boundary is called
     # once per cell here.
-    rows = sorted(((cid_str(z), open_ring(ring_of(z))) for z in zones),
+    rows = sorted(((cid_str(z), open_ring(cell_boundary(z))) for z in zones),
                   key=lambda cr: cr[0])
     cids = [c for c, _ in rows]
     verts = [[[float(la), float(ln)] for la, ln in ring] for _, ring in rows]
@@ -133,8 +133,8 @@ def generate(dggs, res, n, seed, *, zone_at, cid_str, ring_of,
 def generate_levels(dggs, max_res, n, seed, **callbacks):
     """Write one Parquet cell set per resolution 0..max_res (inclusive).
 
-    `callbacks` are the res-aware `generate` keyword callbacks (zone_at,
-    cid_str, ring_of, count_at, enumerate_at).
+    `callbacks` are the res-aware `generate` keyword callbacks (latlng_to_cell,
+    cid_str, cell_boundary, count_at, enumerate_at).
     """
     for res in range(max_res + 1):
         generate(dggs, res, n, seed, **callbacks)

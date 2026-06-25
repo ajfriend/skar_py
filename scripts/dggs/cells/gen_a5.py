@@ -22,8 +22,8 @@ SEED = 0xC0FFEE
 # -------------------------------------------------------------------------
 
 
-def zone_at(res, lon, lat):
-    return a5.lonlat_to_cell(lon, lat, res)  # int, hashable
+def latlng_to_cell(res, lat, lng):
+    return a5.lonlat_to_cell(lng, lat, res)  # int, hashable
 
 
 def count_at(res):
@@ -39,7 +39,7 @@ def enumerate_at(res):
             yield from a5.cell_to_children(c0, res)
 
 
-def ring_of(cid):
+def cell_boundary(cid):
     ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
     return [(lat, lon) for lon, lat in ring]  # -> (lat, lon); closing repeat dropped upstream
 
@@ -47,5 +47,5 @@ def ring_of(cid):
 if __name__ == '__main__':
     _common.generate_levels(
         'a5', TARGET_RES, N, SEED,
-        zone_at=zone_at, cid_str=a5.u64_to_hex, ring_of=ring_of,
+        latlng_to_cell=latlng_to_cell, cid_str=a5.u64_to_hex, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)
