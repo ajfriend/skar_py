@@ -158,6 +158,15 @@ def generate_levels(dggs, max_res, **callbacks):
         generate(dggs, res, **callbacks)
 
 
+def available_systems():
+    """Sorted distinct DGGS names that have cached cell sets in out/."""
+    import re
+    pat = re.compile(r'^(.+)_r\d+\.parquet$')
+    names = {m.group(1) for p in OUT_DIR.glob('*_r*.parquet')
+             if (m := pat.match(p.name))}
+    return sorted(names)
+
+
 def available_resolutions(dggs):
     """Sorted resolutions that have a cached `dggs` cell set."""
     import re

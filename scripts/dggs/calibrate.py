@@ -14,8 +14,9 @@ and measures area with `sparea` (spherical-polygon area). No skar, no DGGS
 libraries — it runs natively off the Parquet rings. The cell sets span every
 resolution, which is exactly the scan a calibration needs.
 
-Adding a new DGGS: generate its cell sets, add a SCAN range below, run this to
-get the pick, then bake it into _common.TARGET_RES.
+Adding a new DGGS: generate its cell sets, run this (it scans every cached
+system across all resolutions automatically), then bake the pick into
+_common.TARGET_RES.
 
 Run with:  just calibrate   (or: uv run scripts/dggs/calibrate.py)
 No CLI args (project convention) — edit the constants below in place.
@@ -35,13 +36,9 @@ import _common as cells  # noqa: E402
 # ----- knobs -------------------------------------------------------------
 TARGET = ('h3', cells.TARGET_RES['h3'])   # reference system + resolution
 SAMPLE = 5000               # random cells per resolution for the median
-# Candidate resolutions to search per system (each within its cached range).
-SCAN = {
-    's2': range(10, 20),
-    'a5': range(8, 20),
-    'isea7h': range(0, 16),
-    'ivea7h': range(0, 16),
-}
+# Every other cached system is scanned across all its resolutions — no per-
+# system ranges to maintain. (PRINT_WINDOW just trims the printed table.)
+PRINT_WINDOW = 3            # rows shown either side of each pick
 # -------------------------------------------------------------------------
 
 
@@ -65,12 +62,15 @@ def main():
     print(f'target: {tsys} r{tres} median area = {target:.4e} sr  '
           f'(N_BIG/N_SMALL={cells.N_BIG}/{cells.N_SMALL}, seed={cells.SEED:#x})\n')
 
-    for sys, scan in SCAN.items():
-        rows = [(res, cell_area(sys, res)) for res in scan]
+    for sys in cells.available_systems():
+        if sys == tsys:                       # the reference system, not a candidate
+            continue
+        rows = [(res, cell_area(sys, res)) for res in cells.available_resolutions(sys)]
         best = min(rows, key=lambda r: abs(np.log(r[1] / target)))
+        bi = next(i for i, (res, _) in enumerate(rows) if res == best[0])
         print(f'--- {sys} (target {tsys} r{tres}) ---')
         print(f'{"res":>4} {"area_sr":>11} {"ratio":>8}')
-        for res, area in rows:
+        for res, area in rows[max(0, bi - PRINT_WINDOW):bi + PRINT_WINDOW + 1]:
             mark = '  <== pick' if res == best[0] else ''
             print(f'{res:>4} {area:>11.4e} {area / target:>8.3f}{mark}')
         print(f'-> {sys} r{best[0]}  ({best[1] / target:.3f}x {tsys} r{tres})\n')
