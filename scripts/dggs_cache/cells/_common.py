@@ -40,14 +40,17 @@ OUT_DIR = Path(__file__).resolve().parent / 'out'
 # — hence they live here, not restated per script. SEED + N must match between
 # a generator and the analysis that reads its files.
 SEED = 0xC0FFEE
-# Sampling-seed policy. False (default): every resolution samples the SAME
-# uniform-on-sphere points (default_rng(SEED)), so a converged, scale-invariant AR
-# field reads out identically across resolutions (e.g. IVEA7H r13..r19 coincide to
-# ~5 decimals — same points x size-independent distortion). True: a distinct stream
-# per resolution (default_rng([SEED, res])) so each resolution probes different
-# points and the tail resolutions become independent samples (sampling spread
-# instead of numerical identity). One seed per resolution either way, shared across
-# systems. Changes which cells are cached, not the schema; flip and regenerate.
+# Sampling-seed policy. True (default): a distinct stream per resolution
+# (default_rng([SEED, res])), so every resolution draws INDEPENDENT points. When
+# the per-resolution AR histograms then agree (e.g. IVEA7H r13..r19 coincide to
+# ~0.1% on the median), that's independent realizations of the same distribution
+# converging honestly — the stronger claim. False: every resolution reuses the
+# SAME points (default_rng(SEED)), so a scale-invariant AR field reads out
+# *identically* across resolutions (r13..r19 to ~5 decimals) — convergence then
+# partly manufactured by point-reuse, but the cache is byte-reproducible against
+# fixed hashes and it isolates pointwise scale-invariance. Deterministic either
+# way; one seed per resolution, shared across systems. Changes which cells are
+# cached, not the schema; flip and regenerate.
 PER_RES_SEED = True
 # Per-resolution cell budget: a dense N_BIG up to a system's working (target)
 # resolution — where the survey and AR explorations want lots of cells — and a
