@@ -140,6 +140,19 @@ def generate_levels(dggs, max_res, n, seed, **callbacks):
         generate(dggs, res, n, seed, **callbacks)
 
 
+def generate_big_small(dggs, target_res, max_res, n_big, n_small, seed, **callbacks):
+    """Write a system's two cell sets, distinguished by `n` in the filename:
+
+    - "big":   resolutions 0..target_res at `n_big` — the dense working-
+               resolution set the survey and AR explorations read.
+    - "small": resolutions 0..max_res at `n_small` — a thin all-resolution set
+               for calibrate (area scan) and the DNC sweep/stress tests, which
+               need every resolution (incl. the finest) but tolerate small N.
+    """
+    generate_levels(dggs, target_res, n_big, seed, **callbacks)
+    generate_levels(dggs, max_res, n_small, seed, **callbacks)
+
+
 def load_cells(dggs, res, n, seed):
     """Yield (cid, (M, 2) lat/lng array) for a generated cell set."""
     path = cells_path(dggs, res, n, seed)

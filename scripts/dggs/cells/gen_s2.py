@@ -2,7 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = ["s2sphere", "numpy>=1.24", "pyarrow>=15"]
 # ///
-"""Generate random S2 cell sets, one per level 0..TARGET_LEVEL -> Parquet.
+"""Generate random S2 cell sets -> Parquet: a dense "big" set at the working
+levels and a thin "small" set at every level.
 
 Coarse levels (<= N cells) are enumerated in full; finer ones are sampled.
 Schema + write logic in _common.py.
@@ -17,7 +18,9 @@ import _common
 
 # ----- knobs -------------------------------------------------------------
 TARGET_LEVEL = 15       # s2sphere supports 0..30; L15 ~0.083 km^2 (survey match)
-N = 100_000
+MAX_LEVEL = 30          # finest s2 level (for the all-level small set)
+N_BIG = 100_000         # dense set, 0..TARGET_LEVEL (survey, AR explorations)
+N_SMALL = 25_000        # thin all-level set, 0..MAX_LEVEL (calibrate, DNC tests)
 SEED = 0xC0FFEE
 # -------------------------------------------------------------------------
 
@@ -51,7 +54,7 @@ def cell_boundary(zid):
 
 
 if __name__ == '__main__':
-    _common.generate_levels(
-        's2', TARGET_LEVEL, N, SEED,
+    _common.generate_big_small(
+        's2', TARGET_LEVEL, MAX_LEVEL, N_BIG, N_SMALL, SEED,
         latlng_to_cell=latlng_to_cell, cid_str=cid_str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

@@ -6,12 +6,22 @@ is decoupled from analysis (which needs `skar`): an analysis reads the Parquet
 back with numpy + pyarrow only, so it never has to import — or satisfy the
 version/arch constraints of — h3, s2sphere, a5_fast, or dggal.
 
-Each generator writes **one file per resolution**, `0` up to its target (the
-resolution near H3 r9's cell size). At each resolution it picks the right
-strategy automatically: if the whole resolution has `<= N` cells it enumerates
-them all (exact, complete — coarse resolutions saturate long before `N` random
-samples would, and sampling would miss the tail); otherwise it draws `N`
-uniform-on-sphere points and dedups to distinct cells.
+Each generator writes **two cell sets**, distinguished by `n` in the filename:
+
+- a **big** set — `N_BIG` (~100k) cells per resolution, `0` up to the system's
+  *target* (the resolution near H3 r9's cell size). Read by the survey and the
+  AR-distribution explorations.
+- a **small** set — `N_SMALL` (~25k) cells per resolution, `0` up to the
+  system's *finest* resolution. A thin all-resolution set for `calibrate.py`
+  (the cell-area scan that picks the target) and the `dnc_sweep`/`dnc_stress`
+  convergence tests, which need every resolution but tolerate smaller N.
+
+At each resolution the generator picks its strategy automatically: if the whole
+resolution has `<= N` cells it enumerates them all (exact, complete — coarse
+resolutions saturate long before `N` random samples would, and sampling would
+miss the tail); otherwise it draws `N` uniform-on-sphere points and dedups to
+distinct cells. (So a resolution may be enumerated in the big set but sampled in
+the small set, where the `<= N` threshold is lower.)
 
 Each generator is a PEP 723 / `uv run` script carrying its own dependency and
 Python version, so the libraries never have to coexist in one environment. The
@@ -47,11 +57,13 @@ compress; coordinates stay exact `float64`). Any modern Parquet reader
 
 ## Run
 
+Each script writes both its big and small set (one `uv run` per system):
+
 ```sh
-uv run scripts/dggs/cells/gen_h3.py     # -> out/h3_r{0..9}_n100000_s00c0ffee.parquet
+uv run scripts/dggs/cells/gen_h3.py     # big h3_r{0..9}_n100000 + small h3_r{0..15}_n25000
 uv run scripts/dggs/cells/gen_s2.py
 uv run scripts/dggs/cells/gen_a5.py
-uv run scripts/dggs/cells/gen_dggal.py  # -> isea7h + ivea7h
+uv run scripts/dggs/cells/gen_dggal.py  # isea7h + ivea7h
 ```
 
 DGGAL ships an arch-broken macOS arm64 wheel, so on Apple Silicon `gen_dggal`
@@ -59,8 +71,8 @@ re-execs itself under an x86_64 (Rosetta) Python 3.13 (where the wheel is
 self-consistent); the command above is the same on every platform (Linux wheels
 are correct, so the re-exec is a no-op there).
 
-Knobs (`TARGET_RES`/`TARGET_LEVEL`, `N`, `SEED`) are edited in place at the top
-of each script — no CLI args, per project convention.
+Knobs (`TARGET_RES`/`TARGET_LEVEL`, `MAX_RES`, `N_BIG`, `N_SMALL`, `SEED`) are
+edited in place at the top of each script — no CLI args, per project convention.
 
 ## Read (analysis side)
 

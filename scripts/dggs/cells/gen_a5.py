@@ -2,7 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = ["a5_fast", "numpy>=1.24", "pyarrow>=15"]
 # ///
-"""Generate random A5 cell sets, one per resolution 0..TARGET_RES -> Parquet.
+"""Generate random A5 cell sets -> Parquet: a dense "big" set at the working
+resolutions and a thin "small" set at every resolution.
 
 Coarse resolutions (<= N cells) are enumerated in full; finer ones are sampled.
 Schema + write logic in _common.py.
@@ -17,7 +18,9 @@ import _common
 
 # ----- knobs -------------------------------------------------------------
 TARGET_RES = 14         # a5 supports 0..30 (a5.MAX_RESOLUTION); r14 ~0.13 km^2
-N = 100_000
+MAX_RES = 30            # finest a5 resolution (for the all-res small set)
+N_BIG = 100_000         # dense set, 0..TARGET_RES (survey, AR explorations)
+N_SMALL = 25_000        # thin all-res set, 0..MAX_RES (calibrate, DNC tests)
 SEED = 0xC0FFEE
 # -------------------------------------------------------------------------
 
@@ -45,7 +48,7 @@ def cell_boundary(cid):
 
 
 if __name__ == '__main__':
-    _common.generate_levels(
-        'a5', TARGET_RES, N, SEED,
+    _common.generate_big_small(
+        'a5', TARGET_RES, MAX_RES, N_BIG, N_SMALL, SEED,
         latlng_to_cell=latlng_to_cell, cid_str=a5.u64_to_hex, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)
