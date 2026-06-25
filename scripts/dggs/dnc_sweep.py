@@ -81,7 +81,7 @@ def h3_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
             yield h3.latlng_to_cell(float(lat), float(lon), res)
         done += k
 
@@ -107,7 +107,7 @@ def s2_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
             cid = s2sphere.CellId.from_lat_lng(
                 s2sphere.LatLng.from_degrees(float(lat), float(lon)))
             yield cid.parent(res)
@@ -143,7 +143,7 @@ def a5_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
             yield a5.lonlat_to_cell(float(lon), float(lat), res)
         done += k
 

@@ -46,7 +46,7 @@ SCHEMA = pa.schema([
 ])
 
 
-def sample_uniform_lonlat(n, rng):
+def sample_uniform_lnglat(n, rng):
     """Uniform-on-sphere samples as (lng_deg, lat_deg), shape (n, 2)."""
     lng = 360.0 * rng.random(n) - 180.0
     lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
@@ -90,7 +90,7 @@ def generate(dggs, res, n, seed, *, latlng_to_cell, cid_str, cell_boundary,
     else:
         rng = np.random.default_rng(seed)
         seen, zones = set(), []
-        for lng, lat in sample_uniform_lonlat(n, rng):
+        for lng, lat in sample_uniform_lnglat(n, rng):
             z = latlng_to_cell(res, float(lat), float(lng))
             if z not in seen:
                 seen.add(z)

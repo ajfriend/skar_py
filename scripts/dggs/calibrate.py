@@ -47,7 +47,7 @@ SCAN = {'s2': range(10, 20), 'a5': range(8, 20)}  # candidate resolutions
 def h3_area(res, n):
     rng = np.random.default_rng(SEED)
     a = []
-    for lon, lat in dggal_common.sample_uniform_lonlat(n, rng):
+    for lon, lat in dggal_common.sample_uniform_lnglat(n, rng):
         cid = h3.latlng_to_cell(float(lat), float(lon), res)
         b = h3.cell_to_boundary(cid)  # [(lat, lng), ...] deg
         a.append(sparea.area(b, geo='latlng'))
@@ -57,7 +57,7 @@ def h3_area(res, n):
 def s2_area(res, n):
     rng = np.random.default_rng(SEED)
     a = []
-    for lon, lat in dggal_common.sample_uniform_lonlat(n, rng):
+    for lon, lat in dggal_common.sample_uniform_lnglat(n, rng):
         cid = s2sphere.CellId.from_lat_lng(
             s2sphere.LatLng.from_degrees(float(lat), float(lon))).parent(res)
         cell = s2sphere.Cell(cid)
@@ -70,7 +70,7 @@ def s2_area(res, n):
 def a5_area(res, n):
     rng = np.random.default_rng(SEED)
     a = []
-    for lon, lat in dggal_common.sample_uniform_lonlat(n, rng):
+    for lon, lat in dggal_common.sample_uniform_lnglat(n, rng):
         cid = a5.lonlat_to_cell(float(lon), float(lat), res)
         ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
         if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):

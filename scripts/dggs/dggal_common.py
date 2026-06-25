@@ -58,11 +58,11 @@ SR2KM2 = R_KM * R_KM
 CHUNK = 50_000              # sampling batch size (keeps memory flat)
 
 
-def sample_uniform_lonlat(n, rng):
-    """Uniform-on-sphere samples as (lon_deg, lat_deg), shape (n, 2)."""
-    lon = 360.0 * rng.random(n) - 180.0
+def sample_uniform_lnglat(n, rng):
+    """Uniform-on-sphere samples as (lng_deg, lat_deg), shape (n, 2)."""
+    lng = 360.0 * rng.random(n) - 180.0
     lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
-    return np.column_stack([lon, lat])
+    return np.column_stack([lng, lat])
 
 
 def latlng_ring(points):
@@ -123,7 +123,7 @@ class Adapter:
         done = 0
         while done < n:
             k = min(CHUNK, n - done)
-            for lon, lat in sample_uniform_lonlat(k, rng):
+            for lon, lat in sample_uniform_lnglat(k, rng):
                 yield self.zone_at(level, lon, lat)
             done += k
 
@@ -136,7 +136,7 @@ class Adapter:
         """
         rng = np.random.default_rng(seed)
         seen = set()
-        for lon, lat in sample_uniform_lonlat(n, rng):
+        for lon, lat in sample_uniform_lnglat(n, rng):
             zone = self.zone_at(level, lon, lat)
             if zone in seen:
                 continue
@@ -150,7 +150,7 @@ class Adapter:
         rng = np.random.default_rng(seed)
         a = [sparea.area(self.ring_latlng(self.zone_at(level, lon, lat)),
                          geo='latlng')
-             for lon, lat in sample_uniform_lonlat(n, rng)]
+             for lon, lat in sample_uniform_lnglat(n, rng)]
         return float(np.median(a)) * SR2KM2
 
 
