@@ -2,11 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["h3>=4", "numpy>=1.24", "pyarrow>=15"]
 # ///
-"""Generate random H3 cell sets -> Parquet: a dense "big" set at the working
-resolutions and a thin "small" set at every resolution.
+"""Generate random H3 cell sets -> Parquet, one file per resolution 0..MAX_RES.
 
-Coarse resolutions (<= N cells) are enumerated in full; finer ones are sampled.
-Schema + write logic in _common.py.
+Coarse resolutions (<= N cells) are enumerated in full; finer ones sample N.
+Schema + write logic (and N/SEED config) in _common.py.
 
 Run:  uv run scripts/dggs/cells/gen_h3.py
 No CLI args (project convention) — edit the constants below in place.
@@ -17,8 +16,7 @@ import h3
 import _common
 
 # ----- knobs -------------------------------------------------------------
-MAX_RES = 15            # finest h3 resolution, for the all-res small set
-# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
+MAX_RES = 15            # finest h3 resolution to generate (h3 supports 0..15)
 # -------------------------------------------------------------------------
 
 
@@ -44,7 +42,7 @@ def cell_boundary(cid):
 
 
 if __name__ == '__main__':
-    _common.generate_big_small(
-        'h3', _common.TARGET_RES['h3'], MAX_RES,
+    _common.generate_levels(
+        'h3', MAX_RES,
         latlng_to_cell=latlng_to_cell, cid_str=str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

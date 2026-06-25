@@ -1,7 +1,7 @@
 """Assert the solver converges at the working resolutions of every DGGS.
 
-For each system, solves every cell of the *small* set at its target (working)
-resolution and all coarser resolutions, and asserts none return
+For each system, solves every cell at its target (working) resolution and all
+coarser resolutions, and asserts none return
 `did_not_converge` under the DEFAULT solver settings. This guards the invariant
 that actually matters: the resolutions the survey and analyses use are
 solver-safe.
@@ -10,7 +10,7 @@ solver-safe.
 characterized by dnc_sweep.py — so this gate deliberately stops at each system's
 working resolution, where everything converges with margin.)
 
-Reads the pre-generated small cell sets (`just gen-cells` first); native
+Reads the pre-generated cell sets (`just gen-cells` first); native
 (skar + the cells group), no DGGS libraries, no Rosetta.
 
 Run with:  just dggs-stress
@@ -39,7 +39,7 @@ def stress_system(name, target):
     total = 0
     bad = []  # (res, cid, status)
     for res in range(target + 1):
-        for cid, latlng in cells.load_cells(name, res, 'small'):
+        for cid, latlng in cells.load_cells(name, res):
             total += 1
             r = skar.solve(skar.to_vec3(latlng, geo='latlng_deg'), geo='vec3')
             if not isinstance(r, skar.Converged):

@@ -72,7 +72,7 @@ DPI = 200
 # ----- per-system cell stream: yield (id, (M, 3) unit-vertex array) -------
 def iter_cells(name):
     """Stream (id, (M, 3) unit-vertex array) for `name` from its Parquet set."""
-    for cid, latlng in cells.load_cells(name, RES[name], 'big'):
+    for cid, latlng in cells.load_cells(name, RES[name]):
         yield cid, skar.to_vec3(latlng, geo='latlng_deg')
 
 

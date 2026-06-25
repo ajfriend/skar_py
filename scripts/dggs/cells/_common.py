@@ -18,11 +18,11 @@ Schema (one row per distinct cell):
     cid    string                            cell id text
     verts  list<fixed_size_list<double, 2>>  ring of [lat, lng] degrees (open)
 
-Files land in ``out/`` next to this module (gitignored via ``scripts/**/out/``),
-named ``{dggs}_r{res}_{kind}.parquet`` where ``kind`` is ``big`` or ``small``
-(the two density tiers — see ``generate_big_small``). Read back with
-``load_cells(dggs, res, kind)`` or any Parquet reader (pandas, DuckDB). SEED and
-the per-kind N are pipeline config below, not encoded in the filename.
+One file per resolution, every resolution: ``out/{dggs}_r{res}.parquet`` (next
+to this module, gitignored via ``scripts/**/out/``). Each holds up to ``N``
+cells — enumerated in full where the resolution has fewer than ``N``. Read back
+with ``load_cells(dggs, res)`` or any Parquet reader (pandas, DuckDB). ``N`` and
+``SEED`` are pipeline config below, not encoded in the filename.
 """
 
 import os
@@ -39,11 +39,12 @@ OUT_DIR = Path(__file__).resolve().parent / 'out'
 # — hence they live here, not restated per script. SEED + N must match between
 # a generator and the analysis that reads its files.
 SEED = 0xC0FFEE
-N_BIG, N_SMALL = 100_000, 25_000     # cells/resolution in the big / small sets
-N_BY_KIND = {'big': N_BIG, 'small': N_SMALL}   # filename tag -> sample budget
+N = 100_000     # target cells per resolution (capped by the resolution's count:
+                # coarse resolutions enumerate every cell, finer ones sample N)
 # Working ("target") resolution per system: the finest in actual use, matched
-# to an H3 r9 cell by calibrate.py. The big set spans 0..target; survey and
-# dnc_stress read it. Update here when calibrate picks a new value.
+# to an H3 r9 cell by calibrate.py. Only the *readers* (survey, dnc_stress,
+# calibrate's anchor) need it — generation covers every resolution. Update here
+# when calibrate picks a new value.
 TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
 # -------------------------------------------------------------------------
 
@@ -74,17 +75,17 @@ def open_ring(ring):
     return ring
 
 
-def cells_path(dggs, res, kind):
-    """Canonical Parquet path for a generated cell set (kind: 'big' | 'small')."""
-    return OUT_DIR / f'{dggs}_r{res}_{kind}.parquet'
+def cells_path(dggs, res):
+    """Canonical Parquet path for a generated cell set."""
+    return OUT_DIR / f'{dggs}_r{res}.parquet'
 
 
-def generate(dggs, res, kind, *, latlng_to_cell, cid_str, cell_boundary,
+def generate(dggs, res, *, latlng_to_cell, cid_str, cell_boundary,
              count_at=None, enumerate_at=None):
-    """Build one `(dggs, res)` cell set of the given `kind` and write it.
+    """Build the `(dggs, res)` cell set and write it to Parquet.
 
-    Draws `N_BY_KIND[kind]` cells (with the module SEED). If the resolution is
-    small enough — `enumerate_at` given and `count_at(res) <= N` — every cell is
+    Draws up to `N` cells (with the module SEED). If the resolution is small
+    enough — `enumerate_at` given and `count_at(res) <= N` — every cell is
     enumerated (exact, complete; the coarse resolutions saturate well before `N`
     random samples would, and pure sampling would miss the tail). Otherwise `N`
     uniform-on-sphere points are drawn and deduped to distinct cells.
@@ -98,14 +99,13 @@ def generate(dggs, res, kind, *, latlng_to_cell, cid_str, cell_boundary,
 
     Returns the written path.
     """
-    n = N_BY_KIND[kind]
-    if enumerate_at is not None and count_at is not None and count_at(res) <= n:
+    if enumerate_at is not None and count_at is not None and count_at(res) <= N:
         zones = list(enumerate_at(res))
         mode = 'all'
     else:
         rng = np.random.default_rng(SEED)
         seen, zones = set(), []
-        for lng, lat in sample_uniform_lnglat(n, rng):
+        for lng, lat in sample_uniform_lnglat(N, rng):
             z = latlng_to_cell(res, float(lat), float(lng))
             if z not in seen:
                 seen.add(z)
@@ -128,7 +128,7 @@ def generate(dggs, res, kind, *, latlng_to_cell, cid_str, cell_boundary,
     }, schema=SCHEMA)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = cells_path(dggs, res, kind)
+    path = cells_path(dggs, res)
     # BYTE_STREAM_SPLIT packs the vertex float64s ~28% smaller, losslessly: the
     # lat/lng values share sign/exponent bytes that zstd then compresses, while
     # the random mantissa bytes are kept out of the way. DELTA_BYTE_ARRAY
@@ -145,38 +145,24 @@ def generate(dggs, res, kind, *, latlng_to_cell, cid_str, cell_boundary,
     return path
 
 
-def generate_levels(dggs, max_res, kind, **callbacks):
+def generate_levels(dggs, max_res, **callbacks):
     """Write one Parquet cell set per resolution 0..max_res (inclusive)."""
     for res in range(max_res + 1):
-        generate(dggs, res, kind, **callbacks)
+        generate(dggs, res, **callbacks)
 
 
-def generate_big_small(dggs, target_res, max_res, **callbacks):
-    """Write a system's two cell sets:
-
-    - "big":   resolutions 0..target_res at N_BIG — the dense working-resolution
-               set the survey and AR explorations read.
-    - "small": resolutions 0..max_res at N_SMALL — a thin all-resolution set for
-               calibrate (area scan) and the DNC sweep/stress tests, which need
-               every resolution (incl. the finest) but tolerate small N.
-    """
-    generate_levels(dggs, target_res, 'big', **callbacks)
-    generate_levels(dggs, max_res, 'small', **callbacks)
-
-
-def available_resolutions(dggs, kind):
-    """Sorted resolutions that have a cached `(dggs, kind)` cell set."""
+def available_resolutions(dggs):
+    """Sorted resolutions that have a cached `dggs` cell set."""
     import re
-    suffix = f'_{kind}.parquet'
-    pat = re.compile(rf'^{re.escape(dggs)}_r(\d+){re.escape(suffix)}$')
-    res = [int(m.group(1)) for p in OUT_DIR.glob(f'{dggs}_r*{suffix}')
+    pat = re.compile(rf'^{re.escape(dggs)}_r(\d+)\.parquet$')
+    res = [int(m.group(1)) for p in OUT_DIR.glob(f'{dggs}_r*.parquet')
            if (m := pat.match(p.name))]
     return sorted(res)
 
 
-def load_cells(dggs, res, kind):
+def load_cells(dggs, res):
     """Yield (cid, (M, 2) lat/lng array) for a generated cell set."""
-    path = cells_path(dggs, res, kind)
+    path = cells_path(dggs, res)
     if not path.exists():
         raise FileNotFoundError(
             f'{path} not found — generate the cell sets first with '

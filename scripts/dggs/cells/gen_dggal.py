@@ -4,10 +4,11 @@
 # ///
 """Generate random DGGAL cell sets (ISEA7H, IVEA7H, ...) -> Parquet.
 
-One file per system in dggal_common.DGGAL_SYSTEMS per level 0..target (coarse
-levels with <= N cells are enumerated in full, finer ones sampled; schema +
-write logic in _common.py). Reuses the parent dggal_common.py for the DGGAL
-setup + registry, so adding a system is still one row there.
+One file per level (0..the grid's finest) for each system in
+dggal_common.DGGAL_SYSTEMS — coarse levels with <= N cells are enumerated in
+full, finer ones sample N (schema + write logic in _common.py). Reuses the
+parent dggal_common.py for the DGGAL setup + registry, so adding a system is
+still one row there.
 
 dggal ships an arch-broken macOS arm64 wheel, so on Apple Silicon this script
 re-execs itself under an x86_64 (Rosetta) Python 3.13 (where the wheel is
@@ -42,15 +43,14 @@ import dggal_common as dc  # noqa: E402
 
 import _common  # noqa: E402
 
-# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
+# N and SEED are pipeline config in _common.py.
 
 
 if __name__ == '__main__':
     for name, row in dc.DGGAL_SYSTEMS.items():
         ad = dc.Adapter(row['cls'])
-        # big: 0..target (_common.TARGET_RES); small: 0..the grid's finest level.
-        _common.generate_big_small(
-            name, _common.TARGET_RES[name], ad.max_level(),
+        _common.generate_levels(
+            name, ad.max_level(),
             latlng_to_cell=lambda res, lat, lng, _ad=ad: _ad.zone_at(res, lng, lat),
             cid_str=ad.cid_str,
             cell_boundary=ad.ring_latlng,

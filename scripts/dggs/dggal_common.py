@@ -158,7 +158,7 @@ class Adapter:
 # One row per DGGAL system in the comparison — the single place to edit to add
 # one. `cls` is the DGGRS class name; gen_dggal.py (cell generation) and
 # validate_corners.py loop this dict. Target resolution and the other pipeline
-# config live in cells/_common.py (TARGET_RES, N_BIG/N_SMALL, SEED).
+# config live in cells/_common.py (TARGET_RES, N, SEED).
 DGGAL_SYSTEMS = {
     'isea7h': dict(cls='ISEA7H'),
     'ivea7h': dict(cls='IVEA7H'),

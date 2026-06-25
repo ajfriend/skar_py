@@ -12,12 +12,10 @@ H3/ISEA7H/IVEA7H stay clean across all resolutions; S2/A5 DNC at their finest,
 sub-metre resolutions (a genuine f64 duality-gap floor, ~22% of S2 L30 / ~47% of
 A5 r30 at 1e-6 — see h3_gap_floor_report.md).
 
-Reads the pre-generated *small* cell sets (scripts/dggs/cells/, `just gen-cells`
-first), so it imports no DGGS library and runs natively. The small set covers
-every resolution at N_SMALL cells — coarser statistics than a dedicated sweep
-(so NOISE_TOL is relaxed accordingly), but enough to map the boundary. Note it
-does not special-case the 12 H3 pentagons (a random set rarely hits them);
-H3 is clean regardless.
+Reads the pre-generated cell sets (scripts/dggs/cells/, `just gen-cells`
+first), so it imports no DGGS library and runs natively — every resolution at
+up to N cells. Note it does not special-case the 12 H3 pentagons (a random set
+rarely hits them); H3 is clean regardless.
 
 Writes a 2-panel PNG (DNC fraction + worst converged gap vs resolution) to
 out/dnc_sweep.png and prints per-system tables + a monotonicity report.
@@ -43,8 +41,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-NOISE_TOL = 1e-2          # monotonicity: ignore DNC-fraction dips below this
-                          # (sampling noise at N_SMALL is ~0.3%)
+NOISE_TOL = 5e-3          # monotonicity: ignore DNC-fraction dips below this
+                          # (sampling noise at N=100k is ~0.15%)
 MAX_DUMP_PER_RES = 50     # cells written per flagged resolution
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
@@ -60,19 +58,19 @@ SYSTEMS = list(SYS_COLOR)
 
 # ----- sweep -------------------------------------------------------------
 def sweep_system(sys):
-    """Return a list of per-resolution record dicts for `sys`'s small set."""
+    """Return a list of per-resolution record dicts for `sys`'s cell sets."""
     rows = []
     print(f'\n=== {SYS_LABEL[sys]} ===')
     print(f'{"res":>3} {"tested":>10} {"dnc":>8} {"dnc%":>7} '
           f'{"conv_gap":>10} {"dnc_gap":>10} {"max_it":>6} {"secs":>6}')
-    for res in cells.available_resolutions(sys, 'small'):
+    for res in cells.available_resolutions(sys):
         t0 = time.perf_counter()
         tested = dnc = infeas = raised = 0
         conv_worst = 0.0
         max_it = 0
         dnc_gaps = []
         dump = []  # (cid_str, gap, verts) for reproduction
-        for cid, latlng in cells.load_cells(sys, res, 'small'):
+        for cid, latlng in cells.load_cells(sys, res):
             tested += 1
             v = skar.to_vec3(latlng, geo='latlng_deg')
             try:
@@ -125,11 +123,13 @@ def analyze(rows):
             flags.append((r['res'], 'drop',
                           f'frac {100*r["frac"]:.2f}% < res {prev["res"]} '
                           f'{100*prev["frac"]:.2f}%'))
-        # DNC island: DNC here but some finer resolution is clean
-        if r['bad'] > 0 and any(rr['bad'] == 0 for rr in rows[i + 1:]):
+        # DNC island: a meaningful DNC fraction here but some finer resolution
+        # is clean. Gated by NOISE_TOL so a stray cell or two at the f64 floor
+        # (1 in 100k at sub-metre resolutions) isn't mistaken for a real band.
+        if r['frac'] >= NOISE_TOL and any(rr['bad'] == 0 for rr in rows[i + 1:]):
             finer_clean = [rr['res'] for rr in rows[i + 1:] if rr['bad'] == 0]
             flags.append((r['res'], 'island',
-                          f'DNC>0 but finer res {finer_clean} are clean'))
+                          f'frac {100*r["frac"]:.2f}% but finer res {finer_clean} clean'))
     return onset, cross1, cross50, flags
 
 

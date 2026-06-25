@@ -2,11 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["a5_fast", "numpy>=1.24", "pyarrow>=15"]
 # ///
-"""Generate random A5 cell sets -> Parquet: a dense "big" set at the working
-resolutions and a thin "small" set at every resolution.
+"""Generate random A5 cell sets -> Parquet, one file per resolution 0..MAX_RES.
 
-Coarse resolutions (<= N cells) are enumerated in full; finer ones are sampled.
-Schema + write logic in _common.py.
+Coarse resolutions (<= N cells) are enumerated in full; finer ones sample N.
+Schema + write logic (and N/SEED config) in _common.py.
 
 Run:  uv run scripts/dggs/cells/gen_a5.py
 No CLI args (project convention) — edit the constants below in place.
@@ -17,8 +16,7 @@ import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
 import _common
 
 # ----- knobs -------------------------------------------------------------
-MAX_RES = 30            # finest a5 resolution (a5.MAX_RESOLUTION), small set
-# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
+MAX_RES = 30            # finest a5 resolution to generate (a5.MAX_RESOLUTION)
 # -------------------------------------------------------------------------
 
 
@@ -45,7 +43,7 @@ def cell_boundary(cid):
 
 
 if __name__ == '__main__':
-    _common.generate_big_small(
-        'a5', _common.TARGET_RES['a5'], MAX_RES,
+    _common.generate_levels(
+        'a5', MAX_RES,
         latlng_to_cell=latlng_to_cell, cid_str=a5.u64_to_hex, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

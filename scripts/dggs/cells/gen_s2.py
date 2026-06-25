@@ -2,11 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["s2sphere", "numpy>=1.24", "pyarrow>=15"]
 # ///
-"""Generate random S2 cell sets -> Parquet: a dense "big" set at the working
-levels and a thin "small" set at every level.
+"""Generate random S2 cell sets -> Parquet, one file per level 0..MAX_LEVEL.
 
-Coarse levels (<= N cells) are enumerated in full; finer ones are sampled.
-Schema + write logic in _common.py.
+Coarse levels (<= N cells) are enumerated in full; finer ones sample N.
+Schema + write logic (and N/SEED config) in _common.py.
 
 Run:  uv run scripts/dggs/cells/gen_s2.py
 No CLI args (project convention) — edit the constants below in place.
@@ -17,8 +16,7 @@ import s2sphere
 import _common
 
 # ----- knobs -------------------------------------------------------------
-MAX_LEVEL = 30          # finest s2 level, for the all-level small set
-# Target level, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
+MAX_LEVEL = 30          # finest s2 level to generate (s2sphere supports 0..30)
 # -------------------------------------------------------------------------
 
 
@@ -51,7 +49,7 @@ def cell_boundary(zid):
 
 
 if __name__ == '__main__':
-    _common.generate_big_small(
-        's2', _common.TARGET_RES['s2'], MAX_LEVEL,
+    _common.generate_levels(
+        's2', MAX_LEVEL,
         latlng_to_cell=latlng_to_cell, cid_str=cid_str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)
