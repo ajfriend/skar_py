@@ -40,6 +40,15 @@ OUT_DIR = Path(__file__).resolve().parent / 'out'
 # — hence they live here, not restated per script. SEED + N must match between
 # a generator and the analysis that reads its files.
 SEED = 0xC0FFEE
+# Sampling-seed policy. False (default): every resolution samples the SAME
+# uniform-on-sphere points (default_rng(SEED)), so a converged, scale-invariant AR
+# field reads out identically across resolutions (e.g. IVEA7H r13..r19 coincide to
+# ~5 decimals — same points x size-independent distortion). True: a distinct stream
+# per resolution (default_rng([SEED, res])) so each resolution probes different
+# points and the tail resolutions become independent samples (sampling spread
+# instead of numerical identity). One seed per resolution either way, shared across
+# systems. Changes which cells are cached, not the schema; flip and regenerate.
+PER_RES_SEED = True
 # Per-resolution cell budget: a dense N_BIG up to a system's working (target)
 # resolution — where the survey and AR explorations want lots of cells — and a
 # thin N_SMALL beyond it, where only the DNC sweep/calibrate read and coverage
@@ -110,7 +119,7 @@ def generate(dggs, res, *, latlng_to_cell, cid_str, cell_boundary,
         zones = list(enumerate_at(res))
         mode = 'all'
     else:
-        rng = np.random.default_rng(SEED)
+        rng = np.random.default_rng([SEED, res] if PER_RES_SEED else SEED)
         seen, zones = set(), []
         for lng, lat in sample_uniform_lnglat(n, rng):
             z = latlng_to_cell(res, float(lat), float(lng))
