@@ -4,7 +4,7 @@ Each generator (``gen_<dggs>.py``) is a standalone PEP 723 / ``uv run`` script
 that carries its *own* DGGS-library dependency (h3, s2sphere, a5_fast, dggal)
 and Python version. This module holds the parts they share — uniform-on-sphere
 sampling, the Parquet schema + writer, and the on-disk path convention — so a
-generator only has to map ``(lon, lat)`` points to a cell id and that cell's
+generator only has to map ``(lng, lat)`` points to a cell id and that cell's
 vertex ring.
 
 The generators are deliberately ``skar``-free: they emit raw geometry, not
@@ -47,10 +47,10 @@ SCHEMA = pa.schema([
 
 
 def sample_uniform_lonlat(n, rng):
-    """Uniform-on-sphere samples as (lon_deg, lat_deg), shape (n, 2)."""
-    lon = 360.0 * rng.random(n) - 180.0
+    """Uniform-on-sphere samples as (lng_deg, lat_deg), shape (n, 2)."""
+    lng = 360.0 * rng.random(n) - 180.0
     lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
-    return np.column_stack([lon, lat])
+    return np.column_stack([lng, lat])
 
 
 def open_ring(ring):
@@ -90,8 +90,8 @@ def generate(dggs, res, n, seed, *, latlng_to_cell, cid_str, cell_boundary,
     else:
         rng = np.random.default_rng(seed)
         seen, zones = set(), []
-        for lon, lat in sample_uniform_lonlat(n, rng):
-            z = latlng_to_cell(res, float(lat), float(lon))
+        for lng, lat in sample_uniform_lonlat(n, rng):
+            z = latlng_to_cell(res, float(lat), float(lng))
             if z not in seen:
                 seen.add(z)
                 zones.append(z)

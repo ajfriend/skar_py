@@ -40,8 +40,8 @@ def enumerate_at(res):
 
 
 def cell_boundary(cid):
-    ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
-    return [(lat, lon) for lon, lat in ring]  # -> (lat, lon); closing repeat dropped upstream
+    ring = a5.cell_to_boundary(cid)  # closed ring of (lng, lat)
+    return [(lat, lng) for lng, lat in ring]  # -> (lat, lng); closing repeat dropped upstream
 
 
 if __name__ == '__main__':

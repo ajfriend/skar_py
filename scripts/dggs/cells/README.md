@@ -75,4 +75,4 @@ for cid, verts in _common.load_cells('h3', 9, 100_000, 0xC0FFEE):
 ```
 
 `_common.py` holds the shared sampler, schema, path convention, and read/write
-helpers; the generators only map `(lon, lat)` to a cell id and its vertex ring.
+helpers; the generators only map `(lng, lat)` to a cell id and its vertex ring.
