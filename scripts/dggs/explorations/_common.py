@@ -1,13 +1,18 @@
 """Shared helpers for the DGGS aspect-ratio exploration scripts.
 
-Importing this also makes scripts/dggs/dggal_common importable (it bootstraps
-sys.path) and re-exports it as `dc`, so an exploration script can just do:
+Importing this gives the skar/numpy primitives below directly. Two heavier deps
+are lazy (PEP 562 `__getattr__`), pulled only when a script actually accesses
+them:
 
-    from _common import dc, aspect_ratio, mvee, mvee_ratio, tangent_basis
+    from _common import dc       # dggal_common — the live DGGAL engine (Rosetta)
+    from _common import cells    # the cell-cache reader (load_cells, TARGET_RES)
+    from _common import aspect_ratio, mvee, gnomonic_xy, tangent_basis
 
-instead of repeating the sys.path dance and copy-pasting these primitives.
+so the cache-reading explorations (ar_histograms, ar_vs_pca) run natively
+without dragging in dggal, while the grid/neighbor ones still get `dc`.
 """
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -15,8 +20,25 @@ import numpy as np
 
 import skar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+_DGGS_DIR = Path(__file__).resolve().parent.parent
+
+
+def __getattr__(name):
+    """Lazily resolve `dc` (dggal_common) and `cells` (cells/_common.py, loaded
+    under a unique name so it doesn't clash with this module). Cached into
+    globals on first access."""
+    if name == 'dc':
+        sys.path.insert(0, str(_DGGS_DIR))
+        import dggal_common as mod
+    elif name == 'cells':
+        spec = importlib.util.spec_from_file_location(
+            'cell_cache', _DGGS_DIR / 'cells' / '_common.py')
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    else:
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    globals()[name] = mod
+    return mod
 
 # A known ISEA7H "dark spot" (sharp low-AR seam cell), from dark_spots_locate.py.
 SPIKE_LATLON = (-71.90959, 140.97260)
