@@ -13,7 +13,7 @@ corners-only is confirmed and we keep it.
 
 Prints a report; writes nothing. Run under the dggs env:
     UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/validate_corners.py
+        scripts/dggs_old/validate_corners.py
 """
 
 import numpy as np

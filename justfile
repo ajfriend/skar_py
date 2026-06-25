@@ -55,25 +55,45 @@ _dggs-sync:
         --reinstall-package skar --no-build-isolation-package skar \
         --group build --group dggs
 
-# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution.
-# Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
-dggs: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/survey.py
+# Generate random-cell Parquet sets for each DGGS (scripts/dggs_cache/cells/). Each
+# gen_*.py is a standalone PEP 723 / uv-run script carrying its own DGGS library
+# + Python, so the libraries never share an env; output goes to
+# scripts/dggs_cache/cells/out/ (gitignored, cached). Re-run only for fresh/larger
+# sets. dggal ships an arch-broken arm64 wheel; gen_dggal self-re-execs under
+# x86_64/Rosetta on Apple Silicon (so a plain `uv run` works everywhere).
+gen-cells: gen-h3 gen-s2 gen-a5 gen-dggal
 
-# Recalibrate the resolutions that match H3 r9 cell area (skar-free).
-# Re-run when adding a new DGGS, then bake the result into survey.py.
-calibrate: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/calibrate.py
+gen-h3:
+    uv run scripts/dggs_cache/cells/gen_h3.py
 
-# Stress test: solve millions of H3 cells across all resolutions with the
-# DEFAULT solver settings and assert none return did_not_converge.
-dggs-stress: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_stress.py
+gen-s2:
+    uv run scripts/dggs_cache/cells/gen_s2.py
 
-# Sweep every system across all resolutions: map the DNC boundary and flag any
-# non-monotonic / unexpected did_not_converge. Writes out/dnc_sweep.png.
-dnc-sweep: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_sweep.py
+gen-a5:
+    uv run scripts/dggs_cache/cells/gen_a5.py
+
+gen-dggal:
+    uv run scripts/dggs_cache/cells/gen_dggal.py
+
+# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution. Reads the
+# pre-generated Parquet cell sets (run `just gen-cells` first), solves each with
+# skar, writes PNGs to scripts/dggs_cache/out/. DGGS-library-free, so it runs natively
+# in the main env — no Rosetta.
+dggs: reinstall
+    uv run --group cells scripts/dggs_cache/survey.py
+
+# Recalibrate the resolutions that match H3 r9 cell area. Reads the small cell
+# sets (run `just gen-cells` first); skar-free and DGGS-library-free, so it runs
+# natively as a standalone uv script. Bake the picks into the generators' TARGET.
+calibrate:
+    uv run scripts/dggs_cache/calibrate.py
+
+# Check the DNC invariants across every DGGS / resolution: working resolutions
+# clean, and DNC only at the finest sub-metre levels (monotone, no islands).
+# Reads the cell sets (`just gen-cells` first); native (skar + the cells group),
+# no Rosetta. Exits non-zero on a regression.
+dnc-check: reinstall
+    uv run --group cells scripts/dggs_cache/dnc_check.py
 
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.

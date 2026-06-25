@@ -14,9 +14,8 @@ histogram of the two metrics per cell and prints the breakdown:
 (Genuine isotropic cells exist only at the ~20 face centroids and are too rare
 by area to be hit by uniform sampling.)
 
-Run under the x86_64 (Rosetta) env -- see ../README.md:
-    UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/explorations/ar_vs_pca.py
+Reads Parquet, no DGGS library, so it runs natively (needs skar built):
+    uv run --group cells scripts/dggs_cache/explorations/ar_vs_pca.py
 """
 
 from pathlib import Path
@@ -28,13 +27,12 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from _common import aspect_ratio, dc, gnomonic_xy, tangent_basis_vec
+import skar
 
-RES = 10
-SEED = 0xC0FFEE
-N = 150_000
+from _common import aspect_ratio, cells, gnomonic_xy, tangent_basis_vec
+
+RES = cells.TARGET_RES['isea7h']   # = 10, the H3-r9-matched DGGAL level
 OUT = Path(__file__).resolve().parent / 'out' / 'ar_vs_pca.png'
-ad = dc.Adapter('ISEA7H')
 
 
 def pca_ratio(v):
@@ -47,7 +45,8 @@ def pca_ratio(v):
 
 
 sk, pc = [], []
-for _cid, v in ad.iter_sample(RES, N, SEED):
+for _cid, latlng in cells.load_cells('isea7h', RES):
+    v = skar.to_vec3(latlng, geo='latlng_deg')
     sk.append(aspect_ratio(v))
     pc.append(pca_ratio(v))
 sk = np.asarray(sk)

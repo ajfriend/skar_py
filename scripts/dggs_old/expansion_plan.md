@@ -96,7 +96,7 @@ registry; `main()` iterates `SYSTEMS`. Nothing else to touch.
 Loops the registry, so the new grid's corners-only check runs automatically.
 
 ### 5. Docs
-`scripts/dggs/README.md` system list / coverage, the repo `readme.md` tree line,
+`scripts/dggs_old/README.md` system list / coverage, the repo `readme.md` tree line,
 and a terse `changelog.md` bullet.
 
 > **pyproject.toml**: `dggal` is already in the `dggs` group — no change for
@@ -106,13 +106,13 @@ and a terse `changelog.md` bullet.
 
 ## Shared DGGAL helper — `dggal_common.py` (built)
 
-Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs/dggal_common.py`:
+Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs_old/dggal_common.py`:
 
 - initializes the DGGAL `Application` **once** (`pydggal_setup`) at import
   (with a guarded `dlopen` fallback for the broken arm64 wheel);
 - `Adapter(cls)` wraps a DGGRS and exposes `count` / `enumerate` / `sample` /
   `verts` / `cid_str` / `max_level` / `area_km2` / `iter_sample`;
-- `latlng_ring(points)` converts DGGAL WGS84 vertices to `(lat, lon)` (corners
+- `latlng_ring(points)` converts DGGAL WGS84 vertices to `(lat, lng)` (corners
   only, closing-repeat stripped) for `skar.to_vec3(..., geo='latlng_deg')`;
 - `DGGAL_SYSTEMS` is the registry the four scripts loop over (see above).
 
@@ -123,12 +123,12 @@ Map onto the DGGAL `DGGRS` API:
 | valid resolutions | `range(0, dggrs.getMaxDGGRSZoneLevel() + 1)` (cap for the sweep) |
 | `count(res)`      | `dggrs.countZones(level)`                                        |
 | `enumerate(res)`  | `dggrs.listZones(level, worldBBox)`                              |
-| `verts(zone)`     | `dggrs.getZoneWGS84Vertices(zone)` → lat/lon → vec3              |
+| `verts(zone)`     | `dggrs.getZoneWGS84Vertices(zone)` → lat/lng → vec3              |
 | `cid_str(zone)`   | `dggrs.getZoneTextID(zone)`                                      |
 
 **Unknowns — all resolved wiring ISEA7H (#7):**
 1. Whole-world bbox: `wholeWorld` global (`GeoExtent((-90,-180),(90,180))`).
-2. Point→zone: `getZoneFromWGS84Centroid(level, GeoPoint(lat, lon))`.
+2. Point→zone: `getZoneFromWGS84Centroid(level, GeoPoint(lat, lng))`.
 3. Pentagons handled — `verts`/`iter_sample` read the returned vertex count, so
    5-vertex pentagons and 6-vertex hexagons both work.
 4. dggal is **BSD-3-Clause** — compatible. (But its macOS arm64 wheel is
@@ -155,7 +155,7 @@ Map onto the DGGAL `DGGRS` API:
 ## First-system extra task — validate corners-only
 
 Once the first DGGAL system runs, add a throwaway validation script
-(`scripts/dggs/validate_corners.py`, gitignored output) that, for a sample of
+(`scripts/dggs_old/validate_corners.py`, gitignored output) that, for a sample of
 cells across resolutions (include the **coarsest** levels and the **pentagons**),
 compares the aspect ratio from corners vs. from
 `getZoneRefinedWGS84Vertices(zone, n)`. If the max delta is within solver

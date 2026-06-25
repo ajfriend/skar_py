@@ -1,25 +1,32 @@
-"""Shared helpers for the DGGS aspect-ratio exploration scripts.
+"""Shared helpers for the cache-reading DGGS exploration scripts.
 
-Importing this also makes scripts/dggs/dggal_common importable (it bootstraps
-sys.path) and re-exports it as `dc`, so an exploration script can just do:
+Gives the skar/numpy primitives below directly, plus a lazy `cells` (the
+cell-cache reader, ../cells/_common.py) pulled only when accessed (PEP 562):
 
-    from _common import dc, aspect_ratio, mvee, mvee_ratio, tangent_basis
-
-instead of repeating the sys.path dance and copy-pasting these primitives.
+    from _common import cells, aspect_ratio, gnomonic_xy, tangent_basis_vec
 """
 
-import sys
+import importlib.util
 from pathlib import Path
 
 import numpy as np
 
 import skar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import dggal_common as dc  # noqa: E402  (needs the sys.path insert above)
+_DGGS_DIR = Path(__file__).resolve().parent.parent
 
-# A known ISEA7H "dark spot" (sharp low-AR seam cell), from dark_spots_locate.py.
-SPIKE_LATLON = (-71.90959, 140.97260)
+
+def __getattr__(name):
+    """Lazily resolve `cells` (../cells/_common.py, loaded under a unique name so
+    it doesn't clash with this module)."""
+    if name != 'cells':
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    spec = importlib.util.spec_from_file_location(
+        'cell_cache', _DGGS_DIR / 'cells' / '_common.py')
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    globals()['cells'] = mod
+    return mod
 
 
 def aspect_ratio(verts):
@@ -28,9 +35,9 @@ def aspect_ratio(verts):
     return r.aspect_ratio if isinstance(r, skar.Converged) else np.nan
 
 
-def unit(lat_deg, lon_deg):
-    """(lat, lon) degrees -> unit vec3."""
-    la, lo = np.radians(lat_deg), np.radians(lon_deg)
+def unit(lat_deg, lng_deg):
+    """(lat, lng) degrees -> unit vec3."""
+    la, lo = np.radians(lat_deg), np.radians(lng_deg)
     return np.array([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo),
                      np.sin(la)])
 
@@ -45,9 +52,9 @@ def tangent_basis_vec(c):
     return c, e1, np.cross(c, e1)
 
 
-def tangent_basis(lat_deg, lon_deg):
-    """Tangent basis (c, e1, e2) at a (lat, lon) point."""
-    return tangent_basis_vec(unit(lat_deg, lon_deg))
+def tangent_basis(lat_deg, lng_deg):
+    """Tangent basis (c, e1, e2) at a (lat, lng) point."""
+    return tangent_basis_vec(unit(lat_deg, lng_deg))
 
 
 def gnomonic_xy(vecs, c, e1, e2):

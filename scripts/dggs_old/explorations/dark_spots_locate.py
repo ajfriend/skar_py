@@ -1,7 +1,7 @@
 """Locate and characterize the ISEA7H "dark spots" (sharp low-AR cells).
 
 Random sampling at fine resolution rarely lands on the rare low-AR cells, so:
-(1) sample a global lon/lat grid, confirm every solve converges (not DNC/nan),
+(1) sample a global lng/lat grid, confirm every solve converges (not DNC/nan),
     and list the darkest grid points;
 (2) fine-zoom the darkest and walk outward — revealing that these are *razor-
     sharp* dips (AR ~1.0 at a point, ~1.34 just 0.05 deg away), embedded in the
@@ -10,7 +10,7 @@ Random sampling at fine resolution rarely lands on the rare low-AR cells, so:
 See dark_spots_verify.py (not a skar bug) and dark_spots_cells.py (the grid
 geometry there). Run under the x86_64 (Rosetta) env — see ../README.md:
     UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/explorations/dark_spots_locate.py
+        scripts/dggs_old/explorations/dark_spots_locate.py
 """
 
 import numpy as np
@@ -23,22 +23,22 @@ RES = 10
 ad = dc.Adapter('ISEA7H')
 
 
-def ar_at(lon, lat):
-    z = ad.zone_at(RES, float(lon), float(lat))
+def ar_at(lng, lat):
+    z = ad.zone_at(RES, float(lng), float(lat))
     r = skar.solve(ad.verts(z), geo='vec3')
     ok = isinstance(r, skar.Converged)
     return (r.aspect_ratio if ok else np.nan), ok, (None if ok else r.status)
 
 
-NLON, NLAT = 720, 360
-lons = np.linspace(-180, 180, NLON)
+NLNG, NLAT = 720, 360
+lngs = np.linspace(-180, 180, NLNG)
 lats = np.linspace(-90, 90, NLAT)
-img = np.empty((NLAT, NLON))
+img = np.empty((NLAT, NLNG))
 nconv = ntot = 0
 statuses = {}
 for i, lat in enumerate(lats):
-    for j, lon in enumerate(lons):
-        a, ok, st = ar_at(lon, lat)
+    for j, lng in enumerate(lngs):
+        a, ok, st = ar_at(lng, lat)
         img[i, j] = a
         ntot += 1
         nconv += ok
@@ -50,22 +50,22 @@ print(f'field AR range: {np.nanmin(img):.5f} .. {np.nanmax(img):.5f}')
 
 thr = 1.02
 ys, xs = np.where(img < thr)
-print(f'\n{len(ys)} grid points with AR < {thr}; lowest 25 (lat, lon, AR):')
+print(f'\n{len(ys)} grid points with AR < {thr}; lowest 25 (lat, lng, AR):')
 order = np.argsort(img[ys, xs])
 for k in order[:25]:
     y, x = ys[k], xs[k]
-    print(f'  lat {lats[y]:6.1f}  lon {lons[x]:7.1f}  AR {img[y, x]:.4f}')
+    print(f'  lat {lats[y]:6.1f}  lng {lngs[x]:7.1f}  AR {img[y, x]:.4f}')
 
 y0, x0 = np.unravel_index(np.nanargmin(img), img.shape)
-lat0, lon0 = lats[y0], lons[x0]
+lat0, lng0 = lats[y0], lngs[x0]
 b, n = 2.0, 121
 zlas = np.linspace(lat0 - b, lat0 + b, n)
-zlos = np.linspace(lon0 - b, lon0 + b, n)
+zlos = np.linspace(lng0 - b, lng0 + b, n)
 zimg = np.empty((n, n))
 for i, la in enumerate(zlas):
     for j, lo in enumerate(zlos):
         zimg[i, j], _, _ = ar_at(lo, la)
-print(f'\nzoom on darkest (lat {lat0:.1f}, lon {lon0:.1f}), +/-{b} deg:')
+print(f'\nzoom on darkest (lat {lat0:.1f}, lng {lng0:.1f}), +/-{b} deg:')
 print(f'  AR {np.nanmin(zimg):.5f} .. {np.nanmax(zimg):.5f}')
 ci = n // 2
 print('  AR by ring radius:')

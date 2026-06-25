@@ -1,12 +1,13 @@
-"""Shared DGGAL binding glue for the DGGS survey scripts.
+"""Shared DGGAL binding glue for the live DGGS analyses.
 
 DGGAL (Ecere's Discrete Global Grid Abstraction Library, `pip install dggal`,
 BSD-3-Clause) exposes many DGGRSs through a single `DGGRS` API. This module
 initializes the DGGAL `Application` once at import and wraps a DGGRS instance in
-the adapter shape survey.py / calibrate.py / dnc_sweep.py expect: count /
-enumerate / sample / verts / cid_str (+ area_km2 for calibrate). Each new DGGAL
-system is then a one-liner: `Adapter('<DGGRSClass>')` (e.g. 'ISEA7H', 'ISEA3H',
-'IVEA7H', 'rHEALPix').
+an `Adapter` (count / enumerate / sample / verts / cid_str / area_km2 / edge
+refinement) used by validate_corners.py and the grid/neighbor explorations.
+(The cache pipeline doesn't import this — gen_dggal inlines the slice it needs.)
+Each new DGGAL system is a one-liner: `Adapter('<DGGRSClass>')` (e.g. 'ISEA7H',
+'ISEA3H', 'IVEA7H', 'rHEALPix').
 
 Vertices come back corners-only as an `(M, 3)` unit-vec3 array (M = 6 for
 hexagons, 5 for the 12 pentagons), matching the H3/S2/A5 adapters — no repeated
@@ -25,8 +26,6 @@ import importlib.util
 import os
 
 import numpy as np
-
-import skar
 
 
 def _preload_native():
@@ -60,15 +59,15 @@ SR2KM2 = R_KM * R_KM
 CHUNK = 50_000              # sampling batch size (keeps memory flat)
 
 
-def sample_uniform_lonlat(n, rng):
-    """Uniform-on-sphere samples as (lon_deg, lat_deg), shape (n, 2)."""
-    lon = 360.0 * rng.random(n) - 180.0
+def sample_uniform_lnglat(n, rng):
+    """Uniform-on-sphere samples as (lng_deg, lat_deg), shape (n, 2)."""
+    lng = 360.0 * rng.random(n) - 180.0
     lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
-    return np.column_stack([lon, lat])
+    return np.column_stack([lng, lat])
 
 
 def latlng_ring(points):
-    """DGGAL WGS84 vertex points (`.lat`/`.lon` Degrees) -> [(lat, lon), ...].
+    """DGGAL WGS84 vertex points (`.lat`/`.lon` Degrees) -> [(lat, lng), ...].
 
     Corners only: strips a closing repeat if present (matches the H3/S2/A5
     adapters; handles hexagons and the 12 pentagons). Shared by the Adapter
@@ -91,13 +90,14 @@ class Adapter:
         self.dggrs = globals()[cls]()
 
     # ----- geometry -----------------------------------------------------
-    def _ring_latlng(self, zone):
-        """Corner vertices of `zone` as [(lat, lon), ...] deg, open ring."""
+    def ring_latlng(self, zone):
+        """Corner vertices of `zone` as [(lat, lng), ...] deg, open ring."""
         return latlng_ring(self.dggrs.getZoneWGS84Vertices(zone))
 
     def verts(self, zone):
         """Corner vertices as an (M, 3) unit-vec3 array (corners only)."""
-        return skar.to_vec3(self._ring_latlng(zone), geo='latlng_deg')
+        import skar  # lazy: the skar-free cell generators import this module too
+        return skar.to_vec3(self.ring_latlng(zone), geo='latlng_deg')
 
     # ----- ids / counts -------------------------------------------------
     def cid_str(self, zone):
@@ -114,18 +114,18 @@ class Adapter:
         """Every zone at `level`, whole world."""
         yield from self.dggrs.listZones(level, wholeWorld)
 
-    def zone_at(self, level, lon, lat):
-        """The zone at `level` containing the (lon, lat) point."""
+    def zone_at(self, level, lng, lat):
+        """The zone at `level` containing the (lng, lat) point."""
         return self.dggrs.getZoneFromWGS84Centroid(
-            level, GeoPoint(float(lat), float(lon)))
+            level, GeoPoint(float(lat), float(lng)))
 
     def sample(self, level, n, rng):
         """`n` zones from uniform-on-sphere points (with repeats)."""
         done = 0
         while done < n:
             k = min(CHUNK, n - done)
-            for lon, lat in sample_uniform_lonlat(k, rng):
-                yield self.zone_at(level, lon, lat)
+            for lng, lat in sample_uniform_lnglat(k, rng):
+                yield self.zone_at(level, lng, lat)
             done += k
 
     def iter_sample(self, level, n, seed):
@@ -137,8 +137,8 @@ class Adapter:
         """
         rng = np.random.default_rng(seed)
         seen = set()
-        for lon, lat in sample_uniform_lonlat(n, rng):
-            zone = self.zone_at(level, lon, lat)
+        for lng, lat in sample_uniform_lnglat(n, rng):
+            zone = self.zone_at(level, lng, lat)
             if zone in seen:
                 continue
             seen.add(zone)
@@ -149,19 +149,18 @@ class Adapter:
         """Median cell area (km^2) over `n` sampled cells, skar-free."""
         import sparea
         rng = np.random.default_rng(seed)
-        a = [sparea.area(self._ring_latlng(self.zone_at(level, lon, lat)),
+        a = [sparea.area(self.ring_latlng(self.zone_at(level, lng, lat)),
                          geo='latlng')
-             for lon, lat in sample_uniform_lonlat(n, rng)]
+             for lng, lat in sample_uniform_lnglat(n, rng)]
         return float(np.median(a)) * SR2KM2
 
 
 # ----- registered DGGAL grids -------------------------------------------
 # One row per DGGAL system in the comparison — the single place to edit to add
-# one. `cls` is the DGGRS class name; `res` the H3-r9-matched level (from
-# calibrate.py); `scan` the calibrate search range; `color` the matplotlib
-# slot. calibrate.py / survey.py / dnc_sweep.py / validate_corners.py each loop
-# this dict to register the system, so no per-system functions are needed.
+# one. `cls` is the DGGRS class name; gen_dggal.py (cell generation) and
+# validate_corners.py loop this dict. Target resolution and the other pipeline
+# config live in cells/_common.py (TARGET_RES, N, SEED).
 DGGAL_SYSTEMS = {
-    'isea7h': dict(cls='ISEA7H', color='C3', res=10, scan=range(0, 16)),
-    'ivea7h': dict(cls='IVEA7H', color='C4', res=10, scan=range(0, 16)),
+    'isea7h': dict(cls='ISEA7H'),
+    'ivea7h': dict(cls='IVEA7H'),
 }

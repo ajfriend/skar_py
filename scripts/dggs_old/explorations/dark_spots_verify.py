@@ -9,7 +9,7 @@ has a near-circular bounding ellipse. Not a bug.
 
 Run under the x86_64 (Rosetta) env — see ../README.md:
     UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/explorations/dark_spots_verify.py
+        scripts/dggs_old/explorations/dark_spots_verify.py
 """
 
 import numpy as np

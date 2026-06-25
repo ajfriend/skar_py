@@ -64,6 +64,11 @@ lab = ["jupyterlab>=4", "matplotlib>=3", "h3", "geopandas>=1", "pyogrio", "s2sph
 # x86_64 marker keeps dggal out of the native arm64 dev/test resolution.
 dggs = ["matplotlib>=3", "h3>=4", "s2sphere", "a5_fast", "sparea>=0.4",
         "dggal; platform_machine == 'x86_64'"]
+# scripts/dggs/cells — read pre-generated Parquet cell sets (pyarrow) + plot
+# (matplotlib). The analysis side imports no DGGS library, so survey.py etc.
+# run natively (no Rosetta) against this group; the cells are produced
+# separately by the per-DGGS gen_*.py scripts (see scripts/dggs/cells/README.md).
+cells = ["matplotlib>=3", "pyarrow>=15"]
 # scripts/states + scripts/countries — geopandas-loaded vector examples.
 geo = ["matplotlib>=3", "geopandas>=1", "pyogrio"]
 
