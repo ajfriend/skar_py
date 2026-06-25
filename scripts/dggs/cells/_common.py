@@ -19,10 +19,11 @@ Schema (one row per distinct cell):
     verts  list<fixed_size_list<double, 2>>  ring of [lat, lng] degrees (open)
 
 One file per resolution, every resolution: ``out/{dggs}_r{res}.parquet`` (next
-to this module, gitignored via ``scripts/**/out/``). Each holds up to ``N``
-cells — enumerated in full where the resolution has fewer than ``N``. Read back
-with ``load_cells(dggs, res)`` or any Parquet reader (pandas, DuckDB). ``N`` and
-``SEED`` are pipeline config below, not encoded in the filename.
+to this module, gitignored via ``scripts/**/out/``). Each holds up to ``N_BIG``
+cells at/below the system's target resolution and ``N_SMALL`` above it
+(enumerated in full where the resolution has fewer). Read back with
+``load_cells(dggs, res)`` or any Parquet reader (pandas, DuckDB); the budgets
+and ``SEED`` are pipeline config below, not encoded in the filename.
 """
 
 import os
@@ -39,12 +40,16 @@ OUT_DIR = Path(__file__).resolve().parent / 'out'
 # — hence they live here, not restated per script. SEED + N must match between
 # a generator and the analysis that reads its files.
 SEED = 0xC0FFEE
-N = 100_000     # target cells per resolution (capped by the resolution's count:
-                # coarse resolutions enumerate every cell, finer ones sample N)
-# Working ("target") resolution per system: the finest in actual use, matched
-# to an H3 r9 cell by calibrate.py. Only the *readers* (survey, dnc_stress,
-# calibrate's anchor) need it — generation covers every resolution. Update here
-# when calibrate picks a new value.
+# Per-resolution cell budget: a dense N_BIG up to a system's working (target)
+# resolution — where the survey and AR explorations want lots of cells — and a
+# thin N_SMALL beyond it, where only the DNC sweep/calibrate read and coverage
+# matters more than count. (Both capped by the resolution's total cell count:
+# coarse resolutions enumerate every cell.) Keeping the deep tail thin is what
+# keeps generation fast — dggal samples every cell under Rosetta.
+N_BIG, N_SMALL = 100_000, 25_000
+# Working ("target") resolution per system: the finest in actual use, matched to
+# an H3 r9 cell by calibrate.py. Used by the readers (survey, dnc_stress,
+# calibrate's anchor) and by generation to pick N_BIG vs N_SMALL per resolution.
 TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
 # -------------------------------------------------------------------------
 
@@ -84,10 +89,11 @@ def generate(dggs, res, *, latlng_to_cell, cid_str, cell_boundary,
              count_at=None, enumerate_at=None):
     """Build the `(dggs, res)` cell set and write it to Parquet.
 
-    Draws up to `N` cells (with the module SEED). If the resolution is small
-    enough — `enumerate_at` given and `count_at(res) <= N` — every cell is
-    enumerated (exact, complete; the coarse resolutions saturate well before `N`
-    random samples would, and pure sampling would miss the tail). Otherwise `N`
+    Draws up to `n` cells (N_BIG at/below the system's target resolution,
+    N_SMALL above it; module SEED). If the resolution is small enough —
+    `enumerate_at` given and `count_at(res) <= n` — every cell is enumerated
+    (exact, complete; the coarse resolutions saturate well before `n` random
+    samples would, and pure sampling would miss the tail). Otherwise `n`
     uniform-on-sphere points are drawn and deduped to distinct cells.
 
     Callbacks (one DGGS library each):
@@ -99,13 +105,14 @@ def generate(dggs, res, *, latlng_to_cell, cid_str, cell_boundary,
 
     Returns the written path.
     """
-    if enumerate_at is not None and count_at is not None and count_at(res) <= N:
+    n = N_BIG if res <= TARGET_RES[dggs] else N_SMALL
+    if enumerate_at is not None and count_at is not None and count_at(res) <= n:
         zones = list(enumerate_at(res))
         mode = 'all'
     else:
         rng = np.random.default_rng(SEED)
         seen, zones = set(), []
-        for lng, lat in sample_uniform_lnglat(N, rng):
+        for lng, lat in sample_uniform_lnglat(n, rng):
             z = latlng_to_cell(res, float(lat), float(lng))
             if z not in seen:
                 seen.add(z)

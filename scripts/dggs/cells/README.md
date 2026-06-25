@@ -7,21 +7,23 @@ back with numpy + pyarrow only, so it never has to import — or satisfy the
 version/arch constraints of — h3, s2sphere, a5_fast, or dggal.
 
 Each generator writes **one file per resolution**, from `0` up to the system's
-finest, each holding up to `N` (~100k) cells. At each resolution the generator
-picks its strategy automatically: if the whole resolution has `<= N` cells it
-enumerates them all (exact, complete — coarse resolutions saturate long before
-`N` random samples would, and sampling would miss the tail); otherwise it draws
-`N` uniform-on-sphere points and dedups to distinct cells. So every consumer
-just reads whatever cells exist at the resolution it wants — the survey and AR
-explorations read a working resolution, `calibrate` scans resolutions by area,
-and the `dnc_sweep`/`dnc_stress` tests read every resolution.
+finest. The per-resolution budget is dense up to the system's working (target)
+resolution — `N_BIG` (~100k) cells, where the survey and AR explorations want
+lots of cells — and thin beyond it — `N_SMALL` (~25k), where only the
+`dnc_sweep`/`calibrate` tests read and coverage matters more than count.
+(Keeping the deep tail thin is what keeps generation fast; dggal samples every
+cell under Rosetta.) At each resolution, if the whole resolution has `<= n`
+cells it enumerates them all (exact, complete — coarse resolutions saturate long
+before `n` random samples would); otherwise it draws `n` uniform-on-sphere
+points and dedups. So every consumer just reads whatever cells exist at the
+resolution it wants.
 
 Each generator is a PEP 723 / `uv run` script carrying its own dependency and
 Python version, so the libraries never have to coexist in one environment. The
 files are cacheable: each `(dggs, res)` maps to one file
-`out/{dggs}_r{res}.parquet` (gitignored), e.g. `h3_r9.parquet`. `N` and the
-`SEED` are pipeline config in `_common.py`, not encoded in the filename. A file
-holds `min(N, distinct samples)` cells, or all `count`
+`out/{dggs}_r{res}.parquet` (gitignored), e.g. `h3_r9.parquet`. The budgets
+(`N_BIG`/`N_SMALL`) and `SEED` are pipeline config in `_common.py`, not encoded
+in the filename. A file holds `min(n, distinct samples)` cells, or all `count`
 cells when the resolution was enumerated.
 
 ## Schema
@@ -65,9 +67,9 @@ re-execs itself under an x86_64 (Rosetta) Python 3.13 (where the wheel is
 self-consistent); the command above is the same on every platform (Linux wheels
 are correct, so the re-exec is a no-op there).
 
-Each generator's `MAX_RES`/`MAX_LEVEL` is at the top of its script; `N`, `SEED`,
-and the per-system `TARGET_RES` are pipeline config in `_common.py` — no CLI
-args, per project convention.
+Each generator's `MAX_RES`/`MAX_LEVEL` is at the top of its script; `N_BIG`,
+`N_SMALL`, `SEED`, and the per-system `TARGET_RES` are pipeline config in
+`_common.py` — no CLI args, per project convention.
 
 ## Read (analysis side)
 

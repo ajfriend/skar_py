@@ -41,8 +41,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-NOISE_TOL = 5e-3          # monotonicity: ignore DNC-fraction dips below this
-                          # (sampling noise at N=100k is ~0.15%)
+NOISE_TOL = 1e-2          # monotonicity: ignore DNC-fraction dips below this
+                          # (DNC lives in the finest, beyond-target resolutions,
+                          # which are N_SMALL=25k -> ~0.3% sampling noise)
 MAX_DUMP_PER_RES = 50     # cells written per flagged resolution
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'

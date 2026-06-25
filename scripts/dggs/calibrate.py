@@ -59,7 +59,7 @@ def main():
     tsys, tres = TARGET
     target = cell_area(tsys, tres)
     print(f'target: {tsys} r{tres} median area = {target:.4e} sr  '
-          f'(N={cells.N}, seed={cells.SEED:#x})\n')
+          f'(N_BIG/N_SMALL={cells.N_BIG}/{cells.N_SMALL}, seed={cells.SEED:#x})\n')
 
     for sys, scan in SCAN.items():
         rows = [(res, cell_area(sys, res)) for res in scan]
