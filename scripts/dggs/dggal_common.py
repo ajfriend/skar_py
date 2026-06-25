@@ -156,11 +156,10 @@ class Adapter:
 
 # ----- registered DGGAL grids -------------------------------------------
 # One row per DGGAL system in the comparison — the single place to edit to add
-# one. `cls` is the DGGRS class name; `res` the H3-r9-matched level (from
-# calibrate.py); `scan` the calibrate search range; `color` the matplotlib
-# slot. calibrate.py / survey.py / dnc_sweep.py / validate_corners.py each loop
-# this dict to register the system, so no per-system functions are needed.
+# one. `cls` is the DGGRS class name; gen_dggal.py (cell generation) and
+# validate_corners.py loop this dict. Target resolution and the other pipeline
+# config live in cells/_common.py (TARGET_RES, N_BIG/N_SMALL, SEED).
 DGGAL_SYSTEMS = {
-    'isea7h': dict(cls='ISEA7H', color='C3', res=10, scan=range(0, 16)),
-    'ivea7h': dict(cls='IVEA7H', color='C4', res=10, scan=range(0, 16)),
+    'isea7h': dict(cls='ISEA7H'),
+    'ivea7h': dict(cls='IVEA7H'),
 }

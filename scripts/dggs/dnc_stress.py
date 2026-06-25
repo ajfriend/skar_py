@@ -28,12 +28,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N_SMALL = 25_000          # small-set N the generators wrote
-SEED = 0xC0FFEE
-# Working (target) resolution per system — the finest in actual use. Cells at
-# this resolution and all coarser must converge. (Mirrors survey.py / the
-# generators' TARGET_RES.)
-TARGET = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+# Pipeline config (single source: cells/_common.py). Cells at each system's
+# working (target) resolution and all coarser must converge.
+N_SMALL = cells.N_SMALL
+SEED = cells.SEED
+TARGET = cells.TARGET_RES
 # -------------------------------------------------------------------------
 
 

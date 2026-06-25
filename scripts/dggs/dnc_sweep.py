@@ -43,8 +43,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N_SMALL = 25_000          # small-set N the generators wrote
-SEED = 0xC0FFEE
+N_SMALL = cells.N_SMALL   # small-set N (pipeline config in cells/_common.py)
+SEED = cells.SEED
 NOISE_TOL = 1e-2          # monotonicity: ignore DNC-fraction dips below this
                           # (sampling noise at N_SMALL is ~0.3%)
 MAX_DUMP_PER_RES = 50     # cells written per flagged resolution

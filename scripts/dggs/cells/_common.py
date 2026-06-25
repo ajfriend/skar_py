@@ -33,6 +33,18 @@ import pyarrow.parquet as pq
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 
+# ----- pipeline config (single source of truth) --------------------------
+# These pin the cache keys, so every generator and analysis must agree on them
+# — hence they live here, not restated per script. SEED + N must match between
+# a generator and the analysis that reads its files.
+SEED = 0xC0FFEE
+N_BIG, N_SMALL = 100_000, 25_000     # cells/resolution in the big / small sets
+# Working ("target") resolution per system: the finest in actual use, matched
+# to an H3 r9 cell by calibrate.py. The big set spans 0..target; survey and
+# dnc_stress read it. Update here when calibrate picks a new value.
+TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+# -------------------------------------------------------------------------
+
 # fixed_size_list(2): each vertex is exactly [lat, lng] deg; the outer list is
 # the variable-length ring (6 for hexagons, 5 for the pentagons, 4 for quads).
 VERTS_TYPE = pa.list_(pa.list_(pa.float64(), 2))

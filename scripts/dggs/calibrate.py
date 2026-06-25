@@ -33,12 +33,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N_SMALL = 25_000            # must match the generators' small-set N
-SEED = 0xC0FFEE             # must match the generators' SEED
+N_SMALL = cells.N_SMALL     # small-set N (pipeline config in cells/_common.py)
+SEED = cells.SEED
 R_KM = 6371.0088            # mean Earth radius; steradian -> km^2 is R^2
 SR2KM2 = R_KM * R_KM
 
-TARGET = ('h3', 9)          # reference system + resolution
+TARGET = ('h3', cells.TARGET_RES['h3'])   # reference system + resolution
 # Candidate resolutions to search per system (each within its small set range).
 SCAN = {
     's2': range(10, 20),

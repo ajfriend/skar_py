@@ -17,11 +17,8 @@ import h3
 import _common
 
 # ----- knobs -------------------------------------------------------------
-TARGET_RES = 9          # h3 supports 0..15; r9 ~0.1 km^2 (survey reference)
-MAX_RES = 15            # finest h3 resolution (for the all-res small set)
-N_BIG = 100_000         # dense set, 0..TARGET_RES (survey, AR explorations)
-N_SMALL = 25_000        # thin all-res set, 0..MAX_RES (calibrate, DNC tests)
-SEED = 0xC0FFEE
+MAX_RES = 15            # finest h3 resolution, for the all-res small set
+# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
 # -------------------------------------------------------------------------
 
 
@@ -48,6 +45,7 @@ def cell_boundary(cid):
 
 if __name__ == '__main__':
     _common.generate_big_small(
-        'h3', TARGET_RES, MAX_RES, N_BIG, N_SMALL, SEED,
+        'h3', _common.TARGET_RES['h3'], MAX_RES, _common.N_BIG, _common.N_SMALL,
+        _common.SEED,
         latlng_to_cell=latlng_to_cell, cid_str=str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

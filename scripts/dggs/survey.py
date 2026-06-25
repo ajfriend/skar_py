@@ -52,16 +52,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-# N and SEED must match what the generators wrote (their file-naming constants).
-N = 100_000
-SEED = 0xC0FFEE
-GAP_TOL = 1e-6
-
-# Resolution per system, matched to H3 r9 cell area (median over random cells,
-# via calibrate.py): H3 r9 ~0.110 km^2 (target); S2 L15 0.083 km^2 (0.76x);
-# A5 r14 0.127 km^2 (1.15x); ISEA7H/IVEA7H r10 0.181 km^2 (1.65x — aperture-7
-# steps by 7x, so r10 is the nearest level). Recompute with `just calibrate`.
-RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+# Pipeline config (single source: cells/_common.py) — read the big set at each
+# system's target resolution. Targets are matched to H3 r9 cell area by
+# calibrate.py: H3 r9 ~0.110 km^2; S2 L15 0.76x; A5 r14 1.15x; ISEA7H/IVEA7H
+# r10 1.65x.
+N = cells.N_BIG
+SEED = cells.SEED
+RES = cells.TARGET_RES
+GAP_TOL = 1e-6              # solve tolerance (survey-specific)
 
 SYSTEMS = list(RES)
 SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14',

@@ -17,11 +17,8 @@ import s2sphere
 import _common
 
 # ----- knobs -------------------------------------------------------------
-TARGET_LEVEL = 15       # s2sphere supports 0..30; L15 ~0.083 km^2 (survey match)
-MAX_LEVEL = 30          # finest s2 level (for the all-level small set)
-N_BIG = 100_000         # dense set, 0..TARGET_LEVEL (survey, AR explorations)
-N_SMALL = 25_000        # thin all-level set, 0..MAX_LEVEL (calibrate, DNC tests)
-SEED = 0xC0FFEE
+MAX_LEVEL = 30          # finest s2 level, for the all-level small set
+# Target level, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
 # -------------------------------------------------------------------------
 
 
@@ -55,6 +52,7 @@ def cell_boundary(zid):
 
 if __name__ == '__main__':
     _common.generate_big_small(
-        's2', TARGET_LEVEL, MAX_LEVEL, N_BIG, N_SMALL, SEED,
+        's2', _common.TARGET_RES['s2'], MAX_LEVEL, _common.N_BIG, _common.N_SMALL,
+        _common.SEED,
         latlng_to_cell=latlng_to_cell, cid_str=cid_str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

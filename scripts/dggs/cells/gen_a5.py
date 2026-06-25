@@ -17,11 +17,8 @@ import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
 import _common
 
 # ----- knobs -------------------------------------------------------------
-TARGET_RES = 14         # a5 supports 0..30 (a5.MAX_RESOLUTION); r14 ~0.13 km^2
-MAX_RES = 30            # finest a5 resolution (for the all-res small set)
-N_BIG = 100_000         # dense set, 0..TARGET_RES (survey, AR explorations)
-N_SMALL = 25_000        # thin all-res set, 0..MAX_RES (calibrate, DNC tests)
-SEED = 0xC0FFEE
+MAX_RES = 30            # finest a5 resolution (a5.MAX_RESOLUTION), small set
+# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
 # -------------------------------------------------------------------------
 
 
@@ -49,6 +46,7 @@ def cell_boundary(cid):
 
 if __name__ == '__main__':
     _common.generate_big_small(
-        'a5', TARGET_RES, MAX_RES, N_BIG, N_SMALL, SEED,
+        'a5', _common.TARGET_RES['a5'], MAX_RES, _common.N_BIG, _common.N_SMALL,
+        _common.SEED,
         latlng_to_cell=latlng_to_cell, cid_str=a5.u64_to_hex, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

@@ -42,19 +42,16 @@ import dggal_common as dc  # noqa: E402
 
 import _common  # noqa: E402
 
-# ----- knobs -------------------------------------------------------------
-N_BIG = 100_000         # dense set, 0..target (survey, AR explorations)
-N_SMALL = 25_000        # thin all-level set, 0..max_level (calibrate, DNC tests)
-SEED = 0xC0FFEE
-# -------------------------------------------------------------------------
+# Target resolution, N_BIG/N_SMALL, and SEED are pipeline config in _common.py.
 
 
 if __name__ == '__main__':
     for name, row in dc.DGGAL_SYSTEMS.items():
         ad = dc.Adapter(row['cls'])
-        # big: 0..target (row['res']); small: 0..the grid's finest level.
+        # big: 0..target (_common.TARGET_RES); small: 0..the grid's finest level.
         _common.generate_big_small(
-            name, row['res'], ad.max_level(), N_BIG, N_SMALL, SEED,
+            name, _common.TARGET_RES[name], ad.max_level(),
+            _common.N_BIG, _common.N_SMALL, _common.SEED,
             latlng_to_cell=lambda res, lat, lng, _ad=ad: _ad.zone_at(res, lng, lat),
             cid_str=ad.cid_str,
             cell_boundary=ad.ring_latlng,
