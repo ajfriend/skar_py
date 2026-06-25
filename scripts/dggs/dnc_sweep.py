@@ -63,13 +63,6 @@ SYS_LABEL = {'h3': 'H3', 's2': 'S2', 'a5': 'A5'}
 # -------------------------------------------------------------------------
 
 
-def sample_uniform_lonlat(n, rng):
-    """Uniform-on-sphere samples as (lon_deg, lat_deg), shape (n, 2)."""
-    lon = 360.0 * rng.random(n) - 180.0
-    lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
-    return np.column_stack([lon, lat])
-
-
 # ----- H3 adapter --------------------------------------------------------
 def h3_count(res):
     return h3.get_num_cells(res)
@@ -88,7 +81,7 @@ def h3_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
             yield h3.latlng_to_cell(float(lat), float(lon), res)
         done += k
 
@@ -114,7 +107,7 @@ def s2_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
             cid = s2sphere.CellId.from_lat_lng(
                 s2sphere.LatLng.from_degrees(float(lat), float(lon)))
             yield cid.parent(res)
@@ -150,7 +143,7 @@ def a5_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in sample_uniform_lonlat(k, rng):
+        for lon, lat in dggal_common.sample_uniform_lonlat(k, rng):
             yield a5.lonlat_to_cell(float(lon), float(lat), res)
         done += k
 

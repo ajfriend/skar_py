@@ -1,24 +1,26 @@
 """DGGS aspect-ratio survey at a commonly-used resolution.
 
-For N random cells at a commonly-used resolution of H3, S2, and A5,
-compute the tightest enclosing-cone aspect ratio with `skar`, then plot
-the per-system distribution and the best/worst cell with its enclosing
-ellipse.
+For N random cells at a commonly-used resolution of H3, S2, A5, and the
+DGGAL ISEA7H/IVEA7H hex grids, compute the tightest enclosing-cone aspect
+ratio with `skar`, then plot the per-system distribution and the
+best/worst cell with its enclosing ellipse.
 
 Resolution choice: H3 res 9 is the reference (~0.1 km^2, ~174 m edge —
-a typical working resolution, not the metre-scale finest). S2 and A5 are
+a typical working resolution, not the metre-scale finest). The others are
 set to the resolution whose cell area is closest to an H3 r9 cell:
-S2 level 15 (0.76x H3 r9 area) and A5 resolution 14 (1.15x). S2/A5
-refine x4 per step, so neither lands exactly on target; these are the
-nearest in log-area. Recompute with `just calibrate` (calibrate.py) when
-adding a new DGGS, then bake the result into the constants below.
+S2 level 15 (0.76x H3 r9 area), A5 resolution 14 (1.15x), ISEA7H/IVEA7H
+r10 (1.65x). They refine in coarser steps than x1, so none lands exactly
+on target; these are the nearest in log-area. Recompute with
+`just calibrate` (calibrate.py) when adding a new DGGS.
 
-Single-pass and file-free: a generator streams one cell at a time
-(`(id, unit-vertex array)`), each is solved immediately, and only the
-running aggregates are kept — the aspect ratios (one float per cell) and
-the two extreme cells per system. Nothing is materialized to disk except
-the final PNGs. This is the Python port of the old gen -> JSON -> Zig ->
-JSON -> plot pipeline, collapsed now that `skar.solve` is callable here.
+Cells come from Parquet, not sampled here: scripts/dggs/cells/gen_<dggs>.py
+(standalone uv-run scripts, each with its own DGGS-library dependency)
+write distinct random cells to scripts/dggs/cells/out/. This survey reads
+those rings back and solves each — so it imports no DGGS library and runs
+natively (no Rosetta). Generate the cell sets first with `just gen-cells`.
+Each cell is solved as it streams in; only running aggregates are kept —
+the aspect ratios (one float per cell) and the two extreme cells per
+system. Nothing new is materialized to disk except the final PNGs.
 
 Solve tolerance: skar's strict gap_tol = 1e-6 default. Every cell at
 these resolutions converges at 1e-6. (A band of H3 resolutions, r7-r10,
@@ -26,12 +28,12 @@ used to stall at ~1.7e-6 and needed a relaxed 1e-5; skar_zig v0.2.0 fixed
 it by lowering the certificate active-set cutoff ACTIVE_THRESH from 1e-6
 to 1e-12 — see h3_gap_floor_report.md at repo root.)
 
-Run with:  just dggs        (or: uv run --group dggs scripts/dggs/survey.py)
+Run with:  just dggs   (reads the Parquet cell sets; `just gen-cells` first)
 No CLI args (project convention) — edit the constants below in place.
 """
 
+import sys
 import time
-from functools import partial
 from pathlib import Path
 
 import matplotlib
@@ -40,103 +42,43 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
-import h3
-import s2sphere
-
 import skar
 
-import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
+# Cell sets are pre-generated to Parquet by scripts/dggs/cells/gen_<dggs>.py —
+# each a standalone uv-run script carrying its own DGGS-library dependency. This
+# survey is itself DGGS-library-free: it reads the rings back and solves them.
+# Generate them first with `just gen-cells` (see scripts/dggs/cells/README.md).
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
+import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N = 10_000
+# N and SEED must match what the generators wrote (their file-naming constants).
+N = 100_000
 SEED = 0xC0FFEE
 GAP_TOL = 1e-6
 
-# Resolutions matched to H3 r9 cell area (median over random cells, via
-# calibrate.py): H3 r9 ~0.110 km^2 (target); S2 L15 0.083 km^2 (0.76x);
-# A5 r14 0.127 km^2 (1.15x). DGGAL grids (ISEA7H/IVEA7H r10, 0.181 km^2, 1.65x
-# — aperture-7 steps by 7x, so r10 is the nearest level) carry their matched
-# resolution in dggal_common.DGGAL_SYSTEMS. Recompute with `just calibrate`.
-H3_RES = 9                  # h3 supports 0..15
-S2_LEVEL = 15               # s2sphere supports 0..30
-A5_RES = 14                 # a5 supports 0..30 (a5.MAX_RESOLUTION)
+# Resolution per system, matched to H3 r9 cell area (median over random cells,
+# via calibrate.py): H3 r9 ~0.110 km^2 (target); S2 L15 0.083 km^2 (0.76x);
+# A5 r14 0.127 km^2 (1.15x); ISEA7H/IVEA7H r10 0.181 km^2 (1.65x — aperture-7
+# steps by 7x, so r10 is the nearest level). Recompute with `just calibrate`.
+RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+
+SYSTEMS = list(RES)
+SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14',
+             'isea7h': 'ISEA7H r10', 'ivea7h': 'IVEA7H r10'}
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 N_BINS = 60
 DPI = 200
-
-# h3/s2/a5 here; DGGAL grids are appended from the registry (see below).
-SYSTEMS = ['h3', 's2', 'a5']
-SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14'}
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2'}
 # -------------------------------------------------------------------------
 
 
-def sample_uniform_lonlat(n, rng):
-    """Uniform-on-sphere samples as (lon_deg, lat_deg), shape (n, 2)."""
-    lon = 360.0 * rng.random(n) - 180.0
-    lat = np.degrees(np.arcsin(2.0 * rng.random(n) - 1.0))  # equal-area in lat
-    return np.column_stack([lon, lat])
-
-
-# ----- per-system cell streams: yield (id, (M, 3) unit-vertex array) ------
-def iter_h3(n, seed):
-    rng = np.random.default_rng(seed)
-    seen = set()
-    for lon, lat in sample_uniform_lonlat(n, rng):
-        cid = h3.latlng_to_cell(float(lat), float(lon), H3_RES)
-        if cid in seen:
-            continue
-        seen.add(cid)
-        boundary = h3.cell_to_boundary(cid)  # [(lat, lng), ...]
-        yield cid, skar.to_vec3(boundary, geo='latlng')
-
-
-def iter_s2(n, seed):
-    rng = np.random.default_rng(seed)
-    seen = set()
-    for lon, lat in sample_uniform_lonlat(n, rng):
-        cid = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(float(lat), float(lon)))
-        if S2_LEVEL != 30:
-            cid = cid.parent(S2_LEVEL)
-        key = cid.id()
-        if key in seen:
-            continue
-        seen.add(key)
-        cell = s2sphere.Cell(cid)
-        # get_vertex returns a Point that is not necessarily unit length.
-        v = np.array([tuple(cell.get_vertex(i))[:3] for i in range(4)], dtype=float)
-        v /= np.linalg.norm(v, axis=1, keepdims=True)
-        yield format(key, '016x'), v
-
-
-def iter_a5(n, seed):
-    rng = np.random.default_rng(seed)
-    seen = set()
-    for lon, lat in sample_uniform_lonlat(n, rng):
-        cid = a5.lonlat_to_cell(float(lon), float(lat), A5_RES)
-        if cid in seen:
-            continue
-        seen.add(cid)
-        ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
-        if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):
-            ring = ring[:-1]
-        latlng = [(lat_, lon_) for lon_, lat_ in ring]
-        yield a5.u64_to_hex(cid), skar.to_vec3(latlng, geo='latlng_deg')
-
-
-ITERATORS = {'h3': iter_h3, 's2': iter_s2, 'a5': iter_a5}
-
-
-# DGGAL systems: build an adapter and register label/color/iterator from each
-# registry row, so adding a grid is one line in dggal_common.DGGAL_SYSTEMS.
-for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
-    _ad = dggal_common.Adapter(_s['cls'])
-    SYSTEMS.append(_k)
-    SYS_LABEL[_k] = f"{_s['cls']} r{_s['res']}"
-    SYS_COLOR[_k] = _s['color']
-    ITERATORS[_k] = partial(_ad.iter_sample, _s['res'])
+# ----- per-system cell stream: yield (id, (M, 3) unit-vertex array) -------
+def iter_cells(name):
+    """Stream (id, (M, 3) unit-vertex array) for `name` from its Parquet set."""
+    for cid, latlng in cells.load_cells(name, RES[name], N, SEED):
+        yield cid, skar.to_vec3(latlng, geo='latlng_deg')
 
 
 def run_system(name):
@@ -144,7 +86,7 @@ def run_system(name):
     ars = []
     dnc = 0
     best = worst = None
-    for cid, verts in ITERATORS[name](N, SEED):
+    for cid, verts in iter_cells(name):
         r = skar.solve(verts, geo='vec3', gap_tol=GAP_TOL)
         if not isinstance(r, skar.Converged):
             dnc += 1

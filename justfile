@@ -55,10 +55,31 @@ _dggs-sync:
         --reinstall-package skar --no-build-isolation-package skar \
         --group build --group dggs
 
-# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution.
-# Streams cells, solves each with skar, writes PNGs to scripts/dggs/out/.
-dggs: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/survey.py
+# Generate random-cell Parquet sets for each DGGS (scripts/dggs/cells/). Each
+# gen_*.py is a standalone PEP 723 / uv-run script carrying its own DGGS library
+# + Python, so the libraries never share an env; output goes to
+# scripts/dggs/cells/out/ (gitignored, cached). Re-run only for fresh/larger
+# sets. dggal ships an arch-broken arm64 wheel, so it runs under x86_64/Rosetta.
+gen-cells: gen-h3 gen-s2 gen-a5 gen-dggal
+
+gen-h3:
+    uv run scripts/dggs/cells/gen_h3.py
+
+gen-s2:
+    uv run scripts/dggs/cells/gen_s2.py
+
+gen-a5:
+    uv run scripts/dggs/cells/gen_a5.py
+
+gen-dggal:
+    uv run --python {{dggs_python}} scripts/dggs/cells/gen_dggal.py
+
+# Run the DGGS aspect-ratio survey at an H3-r9-matched resolution. Reads the
+# pre-generated Parquet cell sets (run `just gen-cells` first), solves each with
+# skar, writes PNGs to scripts/dggs/out/. DGGS-library-free, so it runs natively
+# in the main env — no Rosetta.
+dggs: reinstall
+    uv run --group cells scripts/dggs/survey.py
 
 # Recalibrate the resolutions that match H3 r9 cell area (skar-free).
 # Re-run when adding a new DGGS, then bake the result into survey.py.

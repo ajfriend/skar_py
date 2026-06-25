@@ -26,8 +26,6 @@ import os
 
 import numpy as np
 
-import skar
-
 
 def _preload_native():
     """dlopen libecrt/libdggal RTLD_GLOBAL so flat-namespace symbols resolve."""
@@ -91,13 +89,14 @@ class Adapter:
         self.dggrs = globals()[cls]()
 
     # ----- geometry -----------------------------------------------------
-    def _ring_latlng(self, zone):
+    def ring_latlng(self, zone):
         """Corner vertices of `zone` as [(lat, lon), ...] deg, open ring."""
         return latlng_ring(self.dggrs.getZoneWGS84Vertices(zone))
 
     def verts(self, zone):
         """Corner vertices as an (M, 3) unit-vec3 array (corners only)."""
-        return skar.to_vec3(self._ring_latlng(zone), geo='latlng_deg')
+        import skar  # lazy: the skar-free cell generators import this module too
+        return skar.to_vec3(self.ring_latlng(zone), geo='latlng_deg')
 
     # ----- ids / counts -------------------------------------------------
     def cid_str(self, zone):
@@ -149,7 +148,7 @@ class Adapter:
         """Median cell area (km^2) over `n` sampled cells, skar-free."""
         import sparea
         rng = np.random.default_rng(seed)
-        a = [sparea.area(self._ring_latlng(self.zone_at(level, lon, lat)),
+        a = [sparea.area(self.ring_latlng(self.zone_at(level, lon, lat)),
                          geo='latlng')
              for lon, lat in sample_uniform_lonlat(n, rng)]
         return float(np.median(a)) * SR2KM2
