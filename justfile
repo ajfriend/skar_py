@@ -82,10 +82,11 @@ gen-dggal:
 dggs: reinstall
     uv run --group cells scripts/dggs/survey.py
 
-# Recalibrate the resolutions that match H3 r9 cell area (skar-free).
-# Re-run when adding a new DGGS, then bake the result into survey.py.
-calibrate: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/calibrate.py
+# Recalibrate the resolutions that match H3 r9 cell area. Reads the small cell
+# sets (run `just gen-cells` first); skar-free and DGGS-library-free, so it runs
+# natively as a standalone uv script. Bake the picks into the generators' TARGET.
+calibrate:
+    uv run scripts/dggs/calibrate.py
 
 # Stress test: solve millions of H3 cells across all resolutions with the
 # DEFAULT solver settings and assert none return did_not_converge.

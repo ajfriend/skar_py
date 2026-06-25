@@ -1,103 +1,69 @@
-"""Match S2/A5 resolutions to an H3-res-9 cell by area.
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["sparea>=0.4", "numpy>=1.24", "pyarrow>=15"]
+# ///
+"""Match S2 / A5 / DGGAL resolutions to an H3-res-9 cell by area.
 
-Picks, for each DGGS, the resolution whose median cell area is closest
-(in log-ratio) to the reference H3 res-9 cell. Used to choose the
-resolutions baked into survey.py so all three systems compare cells of
-roughly the same size.
+Picks, for each DGGS, the resolution whose median cell area is closest (in
+log-ratio) to the reference H3 res-9 cell — the resolution baked into each
+generator's TARGET (and survey.py) so all systems compare cells of roughly the
+same size.
 
-Skar-free by design: areas come from `sparea` (spherical-polygon area),
-not from the solver, so this runs even if the skar build is broken. The
-random sampling mirrors survey.py (same uniform-on-sphere sampler and
-SEED) so it measures the same cells the survey solves.
+Reads the pre-generated *small* cell sets (scripts/dggs/cells/, `just gen-cells`
+first) and measures area with `sparea` (spherical-polygon area). No skar, no
+DGGS libraries — it runs natively off the Parquet rings. The small set spans
+every resolution, which is exactly the scan a calibration needs.
 
-Adding a new DGGS = add one `<sys>_area(res, n)` function returning a
-median cell area in km^2, register it in AREA_FN, and give it a SCAN
-range. Then re-run and bake the printed pick into survey.py.
+Adding a new DGGS: generate its small set, add a SCAN range below, run this to
+get the pick, then bake it into the generator's TARGET + survey.py.
 
-Run with:  just calibrate   (or: uv run --group dggs scripts/dggs/calibrate.py)
+Run with:  just calibrate   (or: uv run scripts/dggs/calibrate.py)
 No CLI args (project convention) — edit the constants below in place.
 """
 
-from functools import partial
+import sys
+from pathlib import Path
 
 import numpy as np
 
-import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
-import h3
-import s2sphere
-
 import sparea
 
-import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
+# _common.py (the cell-set reader) lives in the cells/ subfolder.
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
+import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N = 2_000                   # cells sampled per resolution (median is robust)
-SEED = 0xC0FFEE             # match survey.py for reproducibility
+N_SMALL = 25_000            # must match the generators' small-set N
+SEED = 0xC0FFEE             # must match the generators' SEED
 R_KM = 6371.0088            # mean Earth radius; steradian -> km^2 is R^2
 SR2KM2 = R_KM * R_KM
 
 TARGET = ('h3', 9)          # reference system + resolution
-SCAN = {'s2': range(10, 20), 'a5': range(8, 20)}  # candidate resolutions
-# (DGGAL systems add their own SCAN ranges from the registry below.)
+# Candidate resolutions to search per system (each within its small set range).
+SCAN = {
+    's2': range(10, 20),
+    'a5': range(8, 20),
+    'isea7h': range(0, 16),
+    'ivea7h': range(0, 16),
+}
 # -------------------------------------------------------------------------
 
 
-# ----- per-system median cell area (km^2) over N random cells ------------
-# Each samples from the same SEED so candidate resolutions are comparable.
-def h3_area(res, n):
-    rng = np.random.default_rng(SEED)
-    a = []
-    for lng, lat in dggal_common.sample_uniform_lnglat(n, rng):
-        cid = h3.latlng_to_cell(float(lat), float(lng), res)
-        b = h3.cell_to_boundary(cid)  # [(lat, lng), ...] deg
-        a.append(sparea.area(b, geo='latlng'))
+def area_km2(dggs, res):
+    """Median cell area (km^2) over the small set's cells at (dggs, res)."""
+    a = [sparea.area(ring, geo='latlng')
+         for _cid, ring in cells.load_cells(dggs, res, N_SMALL, SEED)]
     return float(np.median(a)) * SR2KM2
-
-
-def s2_area(res, n):
-    rng = np.random.default_rng(SEED)
-    a = []
-    for lng, lat in dggal_common.sample_uniform_lnglat(n, rng):
-        cid = s2sphere.CellId.from_lat_lng(
-            s2sphere.LatLng.from_degrees(float(lat), float(lng))).parent(res)
-        cell = s2sphere.Cell(cid)
-        v = np.array([tuple(cell.get_vertex(i))[:3] for i in range(4)], dtype=float)
-        v /= np.linalg.norm(v, axis=1, keepdims=True)
-        a.append(sparea.area(v, geo='vec3'))
-    return float(np.median(a)) * SR2KM2
-
-
-def a5_area(res, n):
-    rng = np.random.default_rng(SEED)
-    a = []
-    for lng, lat in dggal_common.sample_uniform_lnglat(n, rng):
-        cid = a5.lonlat_to_cell(float(lng), float(lat), res)
-        ring = a5.cell_to_boundary(cid)  # closed ring of (lng, lat)
-        if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):
-            ring = ring[:-1]
-        latlng = [(lat_, lng_) for lng_, lat_ in ring]
-        a.append(sparea.area(latlng, geo='latlng'))
-    return float(np.median(a)) * SR2KM2
-
-
-AREA_FN = {'h3': h3_area, 's2': s2_area, 'a5': a5_area}
-
-
-# DGGAL systems: register an area fn + scan range from each registry row, so
-# adding a grid is one line in dggal_common.DGGAL_SYSTEMS (no per-system code).
-for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
-    AREA_FN[_k] = partial(dggal_common.Adapter(_s['cls']).area_km2, seed=SEED)
-    SCAN[_k] = _s['scan']
 
 
 def main():
     tsys, tres = TARGET
-    target = AREA_FN[tsys](tres, N)
+    target = area_km2(tsys, tres)
     print(f'target: {tsys} r{tres} median area = {target:.6f} km^2  '
-          f'(N={N}, seed={SEED:#x})\n')
+          f'(small set N={N_SMALL}, seed={SEED:#x})\n')
 
     for sys, scan in SCAN.items():
-        rows = [(res, AREA_FN[sys](res, N)) for res in scan]
+        rows = [(res, area_km2(sys, res)) for res in scan]
         best = min(rows, key=lambda r: abs(np.log(r[1] / target)))
         print(f'--- {sys} (target {tsys} r{tres}) ---')
         print(f'{"res":>4} {"area_km2":>12} {"ratio":>8}')
