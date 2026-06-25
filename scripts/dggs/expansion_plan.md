@@ -112,7 +112,7 @@ Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs/dggal_common.py`
   (with a guarded `dlopen` fallback for the broken arm64 wheel);
 - `Adapter(cls)` wraps a DGGRS and exposes `count` / `enumerate` / `sample` /
   `verts` / `cid_str` / `max_level` / `area_km2` / `iter_sample`;
-- `latlng_ring(points)` converts DGGAL WGS84 vertices to `(lat, lon)` (corners
+- `latlng_ring(points)` converts DGGAL WGS84 vertices to `(lat, lng)` (corners
   only, closing-repeat stripped) for `skar.to_vec3(..., geo='latlng_deg')`;
 - `DGGAL_SYSTEMS` is the registry the four scripts loop over (see above).
 
@@ -123,12 +123,12 @@ Map onto the DGGAL `DGGRS` API:
 | valid resolutions | `range(0, dggrs.getMaxDGGRSZoneLevel() + 1)` (cap for the sweep) |
 | `count(res)`      | `dggrs.countZones(level)`                                        |
 | `enumerate(res)`  | `dggrs.listZones(level, worldBBox)`                              |
-| `verts(zone)`     | `dggrs.getZoneWGS84Vertices(zone)` → lat/lon → vec3              |
+| `verts(zone)`     | `dggrs.getZoneWGS84Vertices(zone)` → lat/lng → vec3              |
 | `cid_str(zone)`   | `dggrs.getZoneTextID(zone)`                                      |
 
 **Unknowns — all resolved wiring ISEA7H (#7):**
 1. Whole-world bbox: `wholeWorld` global (`GeoExtent((-90,-180),(90,180))`).
-2. Point→zone: `getZoneFromWGS84Centroid(level, GeoPoint(lat, lon))`.
+2. Point→zone: `getZoneFromWGS84Centroid(level, GeoPoint(lat, lng))`.
 3. Pentagons handled — `verts`/`iter_sample` read the returned vertex count, so
    5-vertex pentagons and 6-vertex hexagons both work.
 4. dggal is **BSD-3-Clause** — compatible. (But its macOS arm64 wheel is
