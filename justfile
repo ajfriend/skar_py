@@ -88,10 +88,11 @@ dggs: reinstall
 calibrate:
     uv run scripts/dggs/calibrate.py
 
-# Stress test: solve millions of H3 cells across all resolutions with the
-# DEFAULT solver settings and assert none return did_not_converge.
-dggs-stress: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_stress.py
+# Stress/regression gate: assert every system converges at its working
+# resolutions and coarser (default solver settings). Reads the small cell sets
+# (run `just gen-cells` first); native (skar + the cells group), no Rosetta.
+dggs-stress: reinstall
+    uv run --group cells scripts/dggs/dnc_stress.py
 
 # Sweep every system across all resolutions: map the DNC boundary and flag any
 # non-monotonic / unexpected did_not_converge. Reads the small cell sets (run
