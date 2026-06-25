@@ -40,9 +40,10 @@ RES = cells.TARGET_RES    # working resolution per system (pipeline config)
 GAP_TOL = 1e-6            # solve tolerance (survey-specific)
 
 SYSTEMS = list(RES)
-SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14',
-             'isea7h': 'ISEA7H r10', 'ivea7h': 'IVEA7H r10'}
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
+# Labels derive the working resolution from RES so they can't silently drift if a
+# target is recalibrated (S2 numbers its resolutions "levels"; the rest use "r").
+SYS_LABEL = {s: f'{s.upper()} {"L" if s == "s2" else "r"}{RES[s]}' for s in SYSTEMS}
+SYS_COLOR = cells.SYS_COLOR
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 N_BINS = 60
@@ -64,22 +65,22 @@ def sweep_system(name):
             if not isinstance(r, skar.Converged):
                 dnc += 1
                 continue
-            ars.append(r.aspect_ratio)
+            ar = r.aspect_ratio
+            ars.append(ar)
             if res == target:
-                rec = {'ar': r.aspect_ratio, 'id': cid, 'verts': verts, 'result': r}
-                if best is None or rec['ar'] < best['ar']:
-                    best = rec
-                if worst is None or rec['ar'] > worst['ar']:
-                    worst = rec
+                if best is None or ar < best['ar']:
+                    best = {'ar': ar, 'id': cid, 'verts': verts, 'result': r}
+                if worst is None or ar > worst['ar']:
+                    worst = {'ar': ar, 'id': cid, 'verts': verts, 'result': r}
         by_res[res] = {'ars': np.asarray(ars), 'dnc': dnc}
-    return {'by_res': by_res, 'target': target, 'best': best, 'worst': worst}
+    return {'by_res': by_res, 'best': best, 'worst': worst}
 
 
 # ----- plotting ----------------------------------------------------------
 def plot_histograms(results):
     """Cross-system AR distributions at each system's working resolution."""
-    ars = {s: results[s]['by_res'][results[s]['target']]['ars'] for s in SYSTEMS}
-    dnc = {s: results[s]['by_res'][results[s]['target']]['dnc'] for s in SYSTEMS}
+    ars = {s: results[s]['by_res'][RES[s]]['ars'] for s in SYSTEMS}
+    dnc = {s: results[s]['by_res'][RES[s]]['dnc'] for s in SYSTEMS}
 
     def stat(a):
         return dict(n=a.size, min=float(a.min()), median=float(np.median(a)),

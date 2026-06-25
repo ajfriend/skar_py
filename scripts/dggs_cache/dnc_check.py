@@ -45,7 +45,7 @@ NOISE_TOL = 1e-2          # DNC-fraction noise floor — the finest resolutions 
                           # N_SMALL=25k cells (~0.3% sampling noise), so a stray
                           # cell or two at the f64 floor isn't a real band
 MAX_EXAMPLES = 5          # offending cell ids to print per failing resolution
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
+SYS_COLOR = cells.SYS_COLOR
 OUT = Path(__file__).resolve().parent / 'out' / 'dnc_check.png'
 # -------------------------------------------------------------------------
 

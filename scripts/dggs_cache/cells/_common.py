@@ -60,6 +60,10 @@ N_BIG, N_SMALL = 100_000, 25_000
 # an H3 r9 cell by calibrate.py. Used by the readers (survey, dnc_check,
 # calibrate's anchor) and by generation to pick N_BIG vs N_SMALL per resolution.
 TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+# Per-system plot color (matplotlib cycle index). Display metadata for the
+# analyses (survey, dnc_check) — kept here with the rest of the system registry,
+# so adding a DGGS is one place. No effect on generation.
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
 # -------------------------------------------------------------------------
 
 # fixed_size_list(2): each vertex is exactly [lat, lng] deg; the outer list is
@@ -92,6 +96,16 @@ def open_ring(ring):
 def cells_path(dggs, res):
     """Canonical Parquet path for a generated cell set."""
     return OUT_DIR / f'{dggs}_r{res}.parquet'
+
+
+def _existing_cells_path(dggs, res):
+    """`cells_path`, raising a uniform 'generate first' error if it's absent."""
+    path = cells_path(dggs, res)
+    if not path.exists():
+        raise FileNotFoundError(
+            f'{path} not found — generate the cell sets first with '
+            f'`just gen-cells` (or the matching scripts/dggs_cache/cells/gen_*.py).')
+    return path
 
 
 def generate(dggs, res, *, latlng_to_cell, cid_str, cell_boundary,
@@ -187,11 +201,7 @@ def available_resolutions(dggs):
 
 def load_cells(dggs, res):
     """Yield (cid, (M, 2) lat/lng array) for a generated cell set."""
-    path = cells_path(dggs, res)
-    if not path.exists():
-        raise FileNotFoundError(
-            f'{path} not found — generate the cell sets first with '
-            f'`just gen-cells` (or the matching scripts/dggs_cache/cells/gen_*.py).')
+    path = _existing_cells_path(dggs, res)
     # Stream in batches (only the columns we need) so memory stays flat — the
     # analyses solve one cell at a time and never need the whole table at once.
     for batch in pq.ParquetFile(path).iter_batches(columns=['cid', 'verts']):
@@ -205,11 +215,7 @@ def load_cells_sample(dggs, res, n):
     would be a clustered patch of the globe; random indices give a
     representative sample of cell sizes. Reproducible via SEED.
     """
-    path = cells_path(dggs, res)
-    if not path.exists():
-        raise FileNotFoundError(
-            f'{path} not found — generate the cell sets first with '
-            f'`just gen-cells` (or the matching scripts/dggs_cache/cells/gen_*.py).')
+    path = _existing_cells_path(dggs, res)
     table = pq.read_table(path, columns=['cid', 'verts'])
     total = table.num_rows
     if total > n:
