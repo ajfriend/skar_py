@@ -28,10 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-# Pipeline config (single source: cells/_common.py). Cells at each system's
-# working (target) resolution and all coarser must converge.
-N_SMALL = cells.N_SMALL
-SEED = cells.SEED
+# Cells at each system's working (target) resolution and all coarser must
+# converge. Targets are pipeline config in cells/_common.py.
 TARGET = cells.TARGET_RES
 # -------------------------------------------------------------------------
 
@@ -41,7 +39,7 @@ def stress_system(name, target):
     total = 0
     bad = []  # (res, cid, status)
     for res in range(target + 1):
-        for cid, latlng in cells.load_cells(name, res, N_SMALL, SEED):
+        for cid, latlng in cells.load_cells(name, res, 'small'):
             total += 1
             r = skar.solve(skar.to_vec3(latlng, geo='latlng_deg'), geo='vec3')
             if not isinstance(r, skar.Converged):

@@ -51,7 +51,6 @@ if __name__ == '__main__':
         # big: 0..target (_common.TARGET_RES); small: 0..the grid's finest level.
         _common.generate_big_small(
             name, _common.TARGET_RES[name], ad.max_level(),
-            _common.N_BIG, _common.N_SMALL, _common.SEED,
             latlng_to_cell=lambda res, lat, lng, _ad=ad: _ad.zone_at(res, lng, lat),
             cid_str=ad.cid_str,
             cell_boundary=ad.ring_latlng,

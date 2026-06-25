@@ -52,14 +52,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-# Pipeline config (single source: cells/_common.py) — read the big set at each
-# system's target resolution. Targets are matched to H3 r9 cell area by
-# calibrate.py: H3 r9 ~0.110 km^2; S2 L15 0.76x; A5 r14 1.15x; ISEA7H/IVEA7H
-# r10 1.65x.
-N = cells.N_BIG
-SEED = cells.SEED
+# Read the big set at each system's target resolution (pipeline config in
+# cells/_common.py). Targets are matched to H3 r9 cell area by calibrate.py:
+# H3 r9 ~0.110 km^2; S2 L15 0.76x; A5 r14 1.15x; ISEA7H/IVEA7H r10 1.65x.
 RES = cells.TARGET_RES
-GAP_TOL = 1e-6              # solve tolerance (survey-specific)
+GAP_TOL = 1e-6             # solve tolerance (survey-specific)
 
 SYSTEMS = list(RES)
 SYS_LABEL = {'h3': 'H3 r9', 's2': 'S2 L15', 'a5': 'A5 r14',
@@ -75,7 +72,7 @@ DPI = 200
 # ----- per-system cell stream: yield (id, (M, 3) unit-vertex array) -------
 def iter_cells(name):
     """Stream (id, (M, 3) unit-vertex array) for `name` from its Parquet set."""
-    for cid, latlng in cells.load_cells(name, RES[name], N, SEED):
+    for cid, latlng in cells.load_cells(name, RES[name], 'big'):
         yield cid, skar.to_vec3(latlng, geo='latlng_deg')
 
 

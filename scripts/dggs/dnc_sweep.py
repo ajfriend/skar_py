@@ -43,8 +43,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
-N_SMALL = cells.N_SMALL   # small-set N (pipeline config in cells/_common.py)
-SEED = cells.SEED
 NOISE_TOL = 1e-2          # monotonicity: ignore DNC-fraction dips below this
                           # (sampling noise at N_SMALL is ~0.3%)
 MAX_DUMP_PER_RES = 50     # cells written per flagged resolution
@@ -67,14 +65,14 @@ def sweep_system(sys):
     print(f'\n=== {SYS_LABEL[sys]} ===')
     print(f'{"res":>3} {"tested":>10} {"dnc":>8} {"dnc%":>7} '
           f'{"conv_gap":>10} {"dnc_gap":>10} {"max_it":>6} {"secs":>6}')
-    for res in cells.available_resolutions(sys, N_SMALL, SEED):
+    for res in cells.available_resolutions(sys, 'small'):
         t0 = time.perf_counter()
         tested = dnc = infeas = raised = 0
         conv_worst = 0.0
         max_it = 0
         dnc_gaps = []
         dump = []  # (cid_str, gap, verts) for reproduction
-        for cid, latlng in cells.load_cells(sys, res, N_SMALL, SEED):
+        for cid, latlng in cells.load_cells(sys, res, 'small'):
             tested += 1
             v = skar.to_vec3(latlng, geo='latlng_deg')
             try:

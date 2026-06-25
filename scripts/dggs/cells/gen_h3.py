@@ -45,7 +45,6 @@ def cell_boundary(cid):
 
 if __name__ == '__main__':
     _common.generate_big_small(
-        'h3', _common.TARGET_RES['h3'], MAX_RES, _common.N_BIG, _common.N_SMALL,
-        _common.SEED,
+        'h3', _common.TARGET_RES['h3'], MAX_RES,
         latlng_to_cell=latlng_to_cell, cid_str=str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

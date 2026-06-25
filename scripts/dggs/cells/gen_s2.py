@@ -52,7 +52,6 @@ def cell_boundary(zid):
 
 if __name__ == '__main__':
     _common.generate_big_small(
-        's2', _common.TARGET_RES['s2'], MAX_LEVEL, _common.N_BIG, _common.N_SMALL,
-        _common.SEED,
+        's2', _common.TARGET_RES['s2'], MAX_LEVEL,
         latlng_to_cell=latlng_to_cell, cid_str=cid_str, cell_boundary=cell_boundary,
         count_at=count_at, enumerate_at=enumerate_at)

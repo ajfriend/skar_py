@@ -25,10 +25,11 @@ the small set, where the `<= N` threshold is lower.)
 
 Each generator is a PEP 723 / `uv run` script carrying its own dependency and
 Python version, so the libraries never have to coexist in one environment. The
-files are cacheable: a given `(dggs, res, n, seed)` maps to one file under
-`out/` (gitignored); reuse it across analyses, or delete it to regenerate. `n`
-is the sample budget — a file holds `min(count, distinct samples)` cells, or all
-`count` cells when the resolution was enumerated.
+files are cacheable: each `(dggs, res, kind)` maps to one file
+`out/{dggs}_r{res}_{kind}.parquet` (gitignored), e.g. `h3_r9_big.parquet`. The
+`N` per kind and the `SEED` are pipeline config in `_common.py`, not encoded in
+the filename. A file holds `min(N, distinct samples)` cells, or all `count`
+cells when the resolution was enumerated.
 
 ## Schema
 
@@ -60,7 +61,7 @@ compress; coordinates stay exact `float64`). Any modern Parquet reader
 Each script writes both its big and small set (one `uv run` per system):
 
 ```sh
-uv run scripts/dggs/cells/gen_h3.py     # big h3_r{0..9}_n100000 + small h3_r{0..15}_n25000
+uv run scripts/dggs/cells/gen_h3.py     # big h3_r{0..9}_big + small h3_r{0..15}_small
 uv run scripts/dggs/cells/gen_s2.py
 uv run scripts/dggs/cells/gen_a5.py
 uv run scripts/dggs/cells/gen_dggal.py  # isea7h + ivea7h
@@ -79,7 +80,7 @@ edited in place at the top of each script — no CLI args, per project conventio
 ```python
 import _common  # or replicate cells_path()/the read
 
-for cid, verts in _common.load_cells('h3', 9, 100_000, 0xC0FFEE):
+for cid, verts in _common.load_cells('h3', 9, 'big'):
     # verts: (M, 2) array of [lat, lng] degrees
     r = skar.solve(skar.to_vec3(verts, geo='latlng_deg'), geo='vec3')
 ```
