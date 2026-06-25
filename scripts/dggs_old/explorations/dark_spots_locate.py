@@ -10,7 +10,7 @@ Random sampling at fine resolution rarely lands on the rare low-AR cells, so:
 See dark_spots_verify.py (not a skar bug) and dark_spots_cells.py (the grid
 geometry there). Run under the x86_64 (Rosetta) env — see ../README.md:
     UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/explorations/dark_spots_locate.py
+        scripts/dggs_old/explorations/dark_spots_locate.py
 """
 
 import numpy as np

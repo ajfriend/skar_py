@@ -182,7 +182,7 @@ def load_cells(dggs, res):
     if not path.exists():
         raise FileNotFoundError(
             f'{path} not found — generate the cell sets first with '
-            f'`just gen-cells` (or the matching scripts/dggs/cells/gen_*.py).')
+            f'`just gen-cells` (or the matching scripts/dggs_cache/cells/gen_*.py).')
     # Stream in batches (only the columns we need) so memory stays flat — the
     # analyses solve one cell at a time and never need the whole table at once.
     for batch in pq.ParquetFile(path).iter_batches(columns=['cid', 'verts']):
@@ -200,7 +200,7 @@ def load_cells_sample(dggs, res, n):
     if not path.exists():
         raise FileNotFoundError(
             f'{path} not found — generate the cell sets first with '
-            f'`just gen-cells` (or the matching scripts/dggs/cells/gen_*.py).')
+            f'`just gen-cells` (or the matching scripts/dggs_cache/cells/gen_*.py).')
     table = pq.read_table(path, columns=['cid', 'verts'])
     total = table.num_rows
     if total > n:

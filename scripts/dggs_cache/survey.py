@@ -13,9 +13,9 @@ r10 (1.65x). They refine in coarser steps than x1, so none lands exactly
 on target; these are the nearest in log-area. Recompute with
 `just calibrate` (calibrate.py) when adding a new DGGS.
 
-Cells come from Parquet, not sampled here: scripts/dggs/cells/gen_<dggs>.py
+Cells come from Parquet, not sampled here: scripts/dggs_cache/cells/gen_<dggs>.py
 (standalone uv-run scripts, each with its own DGGS-library dependency)
-write distinct random cells to scripts/dggs/cells/out/. This survey reads
+write distinct random cells to scripts/dggs_cache/cells/out/. This survey reads
 those rings back and solves each — so it imports no DGGS library and runs
 natively (no Rosetta). Generate the cell sets first with `just gen-cells`.
 Each cell is solved as it streams in; only running aggregates are kept —
@@ -44,10 +44,10 @@ import numpy as np
 
 import skar
 
-# Cell sets are pre-generated to Parquet by scripts/dggs/cells/gen_<dggs>.py —
+# Cell sets are pre-generated to Parquet by scripts/dggs_cache/cells/gen_<dggs>.py —
 # each a standalone uv-run script carrying its own DGGS-library dependency. This
 # survey is itself DGGS-library-free: it reads the rings back and solves them.
-# Generate them first with `just gen-cells` (see scripts/dggs/cells/README.md).
+# Generate them first with `just gen-cells` (see scripts/dggs_cache/cells/README.md).
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
 import _common as cells  # noqa: E402
 

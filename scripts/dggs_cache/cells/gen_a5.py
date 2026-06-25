@@ -7,7 +7,7 @@
 Coarse resolutions (<= N cells) are enumerated in full; finer ones sample N.
 Schema + write logic (and N/SEED config) in _common.py.
 
-Run:  uv run scripts/dggs/cells/gen_a5.py
+Run:  uv run scripts/dggs_cache/cells/gen_a5.py
 No CLI args (project convention) — edit the constants below in place.
 """
 

@@ -15,7 +15,7 @@ re-execs itself under an x86_64 (Rosetta) Python 3.13 (where the wheel is
 self-consistent) — see the guard below. So it runs the same everywhere, with no
 --python flag:
 
-    uv run scripts/dggs/cells/gen_dggal.py
+    uv run scripts/dggs_cache/cells/gen_dggal.py
 
 No CLI args (project convention) — edit the constants below in place.
 """
@@ -36,7 +36,7 @@ if (sys.platform == 'darwin' and platform.machine() == 'arm64'
     os.execvp('uv', ['uv', 'run', '--python', 'cpython-3.13-macos-x86_64',
                      os.path.abspath(__file__)])
 
-# dggal_common.py lives one level up (scripts/dggs/); reuse its DGGAL glue.
+# dggal_common.py lives one level up (scripts/dggs_cache/); reuse its DGGAL glue.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import dggal_common as dc  # noqa: E402

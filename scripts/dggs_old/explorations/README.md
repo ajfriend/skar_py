@@ -17,7 +17,7 @@ Run any of them with:
 
 ```sh
 UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-    scripts/dggs/explorations/<script>.py
+    scripts/dggs_old/explorations/<script>.py
 ```
 
 (Or `just _dggs-sync` once first to (re)build the env.)

@@ -96,7 +96,7 @@ registry; `main()` iterates `SYSTEMS`. Nothing else to touch.
 Loops the registry, so the new grid's corners-only check runs automatically.
 
 ### 5. Docs
-`scripts/dggs/README.md` system list / coverage, the repo `readme.md` tree line,
+`scripts/dggs_old/README.md` system list / coverage, the repo `readme.md` tree line,
 and a terse `changelog.md` bullet.
 
 > **pyproject.toml**: `dggal` is already in the `dggs` group — no change for
@@ -106,7 +106,7 @@ and a terse `changelog.md` bullet.
 
 ## Shared DGGAL helper — `dggal_common.py` (built)
 
-Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs/dggal_common.py`:
+Built during ISEA7H (#7) and extended for IVEA7H. `scripts/dggs_old/dggal_common.py`:
 
 - initializes the DGGAL `Application` **once** (`pydggal_setup`) at import
   (with a guarded `dlopen` fallback for the broken arm64 wheel);
@@ -155,7 +155,7 @@ Map onto the DGGAL `DGGRS` API:
 ## First-system extra task — validate corners-only
 
 Once the first DGGAL system runs, add a throwaway validation script
-(`scripts/dggs/validate_corners.py`, gitignored output) that, for a sample of
+(`scripts/dggs_old/validate_corners.py`, gitignored output) that, for a sample of
 cells across resolutions (include the **coarsest** levels and the **pentagons**),
 compares the aspect ratio from corners vs. from
 `getZoneRefinedWGS84Vertices(zone, n)`. If the max delta is within solver

@@ -13,7 +13,7 @@ distortion field. Two figures:
 
 Run under the x86_64 (Rosetta) env — see ../README.md "Platform note":
     UV_PROJECT_ENVIRONMENT=.venv-dggs uv run --no-sync \
-        scripts/dggs/explorations/ar_heatmap.py
+        scripts/dggs_old/explorations/ar_heatmap.py
 """
 
 from pathlib import Path

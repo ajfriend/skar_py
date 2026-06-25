@@ -15,7 +15,7 @@ histogram of the two metrics per cell and prints the breakdown:
 by area to be hit by uniform sampling.)
 
 Reads Parquet, no DGGS library, so it runs natively (needs skar built):
-    uv run --group cells scripts/dggs/explorations/ar_vs_pca.py
+    uv run --group cells scripts/dggs_cache/explorations/ar_vs_pca.py
 """
 
 from pathlib import Path

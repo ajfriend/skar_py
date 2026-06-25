@@ -12,7 +12,7 @@ H3/ISEA7H/IVEA7H stay clean across all resolutions; S2/A5 DNC at their finest,
 sub-metre resolutions (a genuine f64 duality-gap floor, ~22% of S2 L30 / ~47% of
 A5 r30 at 1e-6 — see h3_gap_floor_report.md).
 
-Reads the pre-generated cell sets (scripts/dggs/cells/, `just gen-cells`
+Reads the pre-generated cell sets (scripts/dggs_cache/cells/, `just gen-cells`
 first), so it imports no DGGS library and runs natively — every resolution at
 up to N cells. Note it does not special-case the 12 H3 pentagons (a random set
 rarely hits them); H3 is clean regardless.

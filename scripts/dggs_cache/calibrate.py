@@ -9,7 +9,7 @@ log-ratio) to the reference H3 res-9 cell — the resolution baked into each
 generator's TARGET (and survey.py) so all systems compare cells of roughly the
 same size.
 
-Reads the pre-generated cell sets (scripts/dggs/cells/, `just gen-cells` first)
+Reads the pre-generated cell sets (scripts/dggs_cache/cells/, `just gen-cells` first)
 and measures area with `sparea` (spherical-polygon area). No skar, no DGGS
 libraries — it runs natively off the Parquet rings. The cell sets span every
 resolution, which is exactly the scan a calibration needs.
@@ -18,7 +18,7 @@ Adding a new DGGS: generate its cell sets, run this (it scans every cached
 system across all resolutions automatically), then bake the pick into
 _common.TARGET_RES.
 
-Run with:  just calibrate   (or: uv run scripts/dggs/calibrate.py)
+Run with:  just calibrate   (or: uv run scripts/dggs_cache/calibrate.py)
 No CLI args (project convention) — edit the constants below in place.
 """
 

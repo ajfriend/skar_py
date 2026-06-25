@@ -56,10 +56,10 @@ compress; coordinates stay exact `float64`). Any modern Parquet reader
 One `uv run` per system writes all its resolutions:
 
 ```sh
-uv run scripts/dggs/cells/gen_h3.py     # -> h3_r0.parquet .. h3_r15.parquet
-uv run scripts/dggs/cells/gen_s2.py
-uv run scripts/dggs/cells/gen_a5.py
-uv run scripts/dggs/cells/gen_dggal.py  # isea7h + ivea7h
+uv run scripts/dggs_cache/cells/gen_h3.py     # -> h3_r0.parquet .. h3_r15.parquet
+uv run scripts/dggs_cache/cells/gen_s2.py
+uv run scripts/dggs_cache/cells/gen_a5.py
+uv run scripts/dggs_cache/cells/gen_dggal.py  # isea7h + ivea7h
 ```
 
 DGGAL ships an arch-broken macOS arm64 wheel, so on Apple Silicon `gen_dggal`

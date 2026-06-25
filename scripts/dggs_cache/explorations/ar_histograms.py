@@ -1,13 +1,13 @@
 """DGGAL aspect-ratio histograms over the cached cells.
 
 Reads the pre-generated ISEA7H/IVEA7H cell sets at the H3-r9-matched resolution
-(scripts/dggs/cells/, `just gen-cells` first) and plots the per-grid AR
+(scripts/dggs_cache/cells/, `just gen-cells` first) and plots the per-grid AR
 distribution (per-grid bins, log y). This is what revealed that ISEA7H is
 right-skewed (long tail to ~1.36) while IVEA7H is a flat-topped, sharply-bounded
 band (~1.06-1.22).
 
 Reads Parquet, no DGGS library, so it runs natively (needs skar built):
-    uv run --group cells scripts/dggs/explorations/ar_histograms.py
+    uv run --group cells scripts/dggs_cache/explorations/ar_histograms.py
 """
 
 from pathlib import Path
