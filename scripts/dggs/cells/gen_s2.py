@@ -23,10 +23,9 @@ SEED = 0xC0FFEE
 
 
 def latlng_to_cell(res, lat, lng):
-    cid = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lng))
-    if res != 30:
-        cid = cid.parent(res)
-    return cid.id()  # int, hashable
+    # from_lat_lng yields a level-30 leaf; walk up to the cell at `res`.
+    leaf = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lng))
+    return leaf.parent(res).id()  # int, hashable
 
 
 def count_at(res):
