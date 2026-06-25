@@ -59,7 +59,8 @@ _dggs-sync:
 # gen_*.py is a standalone PEP 723 / uv-run script carrying its own DGGS library
 # + Python, so the libraries never share an env; output goes to
 # scripts/dggs/cells/out/ (gitignored, cached). Re-run only for fresh/larger
-# sets. dggal ships an arch-broken arm64 wheel, so it runs under x86_64/Rosetta.
+# sets. dggal ships an arch-broken arm64 wheel; gen_dggal self-re-execs under
+# x86_64/Rosetta on Apple Silicon (so a plain `uv run` works everywhere).
 gen-cells: gen-h3 gen-s2 gen-a5 gen-dggal
 
 gen-h3:
@@ -72,7 +73,7 @@ gen-a5:
     uv run scripts/dggs/cells/gen_a5.py
 
 gen-dggal:
-    uv run --python {{dggs_python}} scripts/dggs/cells/gen_dggal.py
+    uv run scripts/dggs/cells/gen_dggal.py
 
 # Run the DGGS aspect-ratio survey at an H3-r9-matched resolution. Reads the
 # pre-generated Parquet cell sets (run `just gen-cells` first), solves each with

@@ -51,15 +51,13 @@ compress; coordinates stay exact `float64`). Any modern Parquet reader
 uv run scripts/dggs/cells/gen_h3.py     # -> out/h3_r{0..9}_n100000_s00c0ffee.parquet
 uv run scripts/dggs/cells/gen_s2.py
 uv run scripts/dggs/cells/gen_a5.py
+uv run scripts/dggs/cells/gen_dggal.py  # -> isea7h + ivea7h
 ```
 
-DGGAL ships an arch-broken macOS arm64 wheel, so on Apple Silicon run its
-generator under an x86_64 (Rosetta) Python 3.13 (Linux wheels are fine with a
-plain `uv run`):
-
-```sh
-uv run --python cpython-3.13-macos-x86_64 scripts/dggs/cells/gen_dggal.py
-```
+DGGAL ships an arch-broken macOS arm64 wheel, so on Apple Silicon `gen_dggal`
+re-execs itself under an x86_64 (Rosetta) Python 3.13 (where the wheel is
+self-consistent); the command above is the same on every platform (Linux wheels
+are correct, so the re-exec is a no-op there).
 
 Knobs (`TARGET_RES`/`TARGET_LEVEL`, `N`, `SEED`) are edited in place at the top
 of each script — no CLI args, per project convention.
