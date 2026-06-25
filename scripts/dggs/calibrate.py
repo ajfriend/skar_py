@@ -35,8 +35,6 @@ import _common as cells  # noqa: E402
 # ----- knobs -------------------------------------------------------------
 N_SMALL = cells.N_SMALL     # small-set N (pipeline config in cells/_common.py)
 SEED = cells.SEED
-R_KM = 6371.0088            # mean Earth radius; steradian -> km^2 is R^2
-SR2KM2 = R_KM * R_KM
 
 TARGET = ('h3', cells.TARGET_RES['h3'])   # reference system + resolution
 # Candidate resolutions to search per system (each within its small set range).
@@ -49,27 +47,31 @@ SCAN = {
 # -------------------------------------------------------------------------
 
 
-def area_km2(dggs, res):
-    """Median cell area (km^2) over the small set's cells at (dggs, res)."""
+def cell_area(dggs, res):
+    """Median cell area over the small set's cells, in sparea's native units.
+
+    Only ratios to the reference matter (the pick is by log-ratio), so there's
+    no need to convert steradians -> km^2 — the scale factor cancels.
+    """
     a = [sparea.area(ring, geo='latlng')
          for _cid, ring in cells.load_cells(dggs, res, N_SMALL, SEED)]
-    return float(np.median(a)) * SR2KM2
+    return float(np.median(a))
 
 
 def main():
     tsys, tres = TARGET
-    target = area_km2(tsys, tres)
-    print(f'target: {tsys} r{tres} median area = {target:.6f} km^2  '
+    target = cell_area(tsys, tres)
+    print(f'target: {tsys} r{tres} median area = {target:.4e} sr  '
           f'(small set N={N_SMALL}, seed={SEED:#x})\n')
 
     for sys, scan in SCAN.items():
-        rows = [(res, area_km2(sys, res)) for res in scan]
+        rows = [(res, cell_area(sys, res)) for res in scan]
         best = min(rows, key=lambda r: abs(np.log(r[1] / target)))
         print(f'--- {sys} (target {tsys} r{tres}) ---')
-        print(f'{"res":>4} {"area_km2":>12} {"ratio":>8}')
+        print(f'{"res":>4} {"area_sr":>11} {"ratio":>8}')
         for res, area in rows:
             mark = '  <== pick' if res == best[0] else ''
-            print(f'{res:>4} {area:>12.6f} {area / target:>8.3f}{mark}')
+            print(f'{res:>4} {area:>11.4e} {area / target:>8.3f}{mark}')
         print(f'-> {sys} r{best[0]}  ({best[1] / target:.3f}x {tsys} r{tres})\n')
 
 
