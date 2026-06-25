@@ -52,9 +52,9 @@ def random_cells(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        lon = 360.0 * rng.random(k) - 180.0
+        lng = 360.0 * rng.random(k) - 180.0
         lat = np.degrees(np.arcsin(2.0 * rng.random(k) - 1.0))  # equal-area
-        for la, lo in zip(lat, lon):
+        for la, lo in zip(lat, lng):
             yield h3.latlng_to_cell(float(la), float(lo), res)
         done += k
 

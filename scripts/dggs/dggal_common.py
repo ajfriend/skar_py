@@ -66,7 +66,7 @@ def sample_uniform_lnglat(n, rng):
 
 
 def latlng_ring(points):
-    """DGGAL WGS84 vertex points (`.lat`/`.lon` Degrees) -> [(lat, lon), ...].
+    """DGGAL WGS84 vertex points (`.lat`/`.lon` Degrees) -> [(lat, lng), ...].
 
     Corners only: strips a closing repeat if present (matches the H3/S2/A5
     adapters; handles hexagons and the 12 pentagons). Shared by the Adapter
@@ -90,7 +90,7 @@ class Adapter:
 
     # ----- geometry -----------------------------------------------------
     def ring_latlng(self, zone):
-        """Corner vertices of `zone` as [(lat, lon), ...] deg, open ring."""
+        """Corner vertices of `zone` as [(lat, lng), ...] deg, open ring."""
         return latlng_ring(self.dggrs.getZoneWGS84Vertices(zone))
 
     def verts(self, zone):
@@ -113,18 +113,18 @@ class Adapter:
         """Every zone at `level`, whole world."""
         yield from self.dggrs.listZones(level, wholeWorld)
 
-    def zone_at(self, level, lon, lat):
-        """The zone at `level` containing the (lon, lat) point."""
+    def zone_at(self, level, lng, lat):
+        """The zone at `level` containing the (lng, lat) point."""
         return self.dggrs.getZoneFromWGS84Centroid(
-            level, GeoPoint(float(lat), float(lon)))
+            level, GeoPoint(float(lat), float(lng)))
 
     def sample(self, level, n, rng):
         """`n` zones from uniform-on-sphere points (with repeats)."""
         done = 0
         while done < n:
             k = min(CHUNK, n - done)
-            for lon, lat in sample_uniform_lnglat(k, rng):
-                yield self.zone_at(level, lon, lat)
+            for lng, lat in sample_uniform_lnglat(k, rng):
+                yield self.zone_at(level, lng, lat)
             done += k
 
     def iter_sample(self, level, n, seed):
@@ -136,8 +136,8 @@ class Adapter:
         """
         rng = np.random.default_rng(seed)
         seen = set()
-        for lon, lat in sample_uniform_lnglat(n, rng):
-            zone = self.zone_at(level, lon, lat)
+        for lng, lat in sample_uniform_lnglat(n, rng):
+            zone = self.zone_at(level, lng, lat)
             if zone in seen:
                 continue
             seen.add(zone)
@@ -148,9 +148,9 @@ class Adapter:
         """Median cell area (km^2) over `n` sampled cells, skar-free."""
         import sparea
         rng = np.random.default_rng(seed)
-        a = [sparea.area(self.ring_latlng(self.zone_at(level, lon, lat)),
+        a = [sparea.area(self.ring_latlng(self.zone_at(level, lng, lat)),
                          geo='latlng')
-             for lon, lat in sample_uniform_lnglat(n, rng)]
+             for lng, lat in sample_uniform_lnglat(n, rng)]
         return float(np.median(a)) * SR2KM2
 
 

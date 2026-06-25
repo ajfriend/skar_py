@@ -81,8 +81,8 @@ def h3_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
-            yield h3.latlng_to_cell(float(lat), float(lon), res)
+        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
+            yield h3.latlng_to_cell(float(lat), float(lng), res)
         done += k
 
 
@@ -107,9 +107,9 @@ def s2_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
+        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
             cid = s2sphere.CellId.from_lat_lng(
-                s2sphere.LatLng.from_degrees(float(lat), float(lon)))
+                s2sphere.LatLng.from_degrees(float(lat), float(lng)))
             yield cid.parent(res)
         done += k
 
@@ -143,16 +143,16 @@ def a5_sample(res, n, rng):
     done = 0
     while done < n:
         k = min(CHUNK, n - done)
-        for lon, lat in dggal_common.sample_uniform_lnglat(k, rng):
-            yield a5.lonlat_to_cell(float(lon), float(lat), res)
+        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
+            yield a5.lonlat_to_cell(float(lng), float(lat), res)
         done += k
 
 
 def a5_verts(cid):
-    ring = a5.cell_to_boundary(cid)  # closed ring of (lon, lat)
+    ring = a5.cell_to_boundary(cid)  # closed ring of (lng, lat)
     if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):
         ring = ring[:-1]
-    latlng = [(lat_, lon_) for lon_, lat_ in ring]
+    latlng = [(lat_, lng_) for lng_, lat_ in ring]
     return skar.to_vec3(latlng, geo='latlng_deg')
 
 

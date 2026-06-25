@@ -28,9 +28,9 @@ def aspect_ratio(verts):
     return r.aspect_ratio if isinstance(r, skar.Converged) else np.nan
 
 
-def unit(lat_deg, lon_deg):
-    """(lat, lon) degrees -> unit vec3."""
-    la, lo = np.radians(lat_deg), np.radians(lon_deg)
+def unit(lat_deg, lng_deg):
+    """(lat, lng) degrees -> unit vec3."""
+    la, lo = np.radians(lat_deg), np.radians(lng_deg)
     return np.array([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo),
                      np.sin(la)])
 
@@ -45,9 +45,9 @@ def tangent_basis_vec(c):
     return c, e1, np.cross(c, e1)
 
 
-def tangent_basis(lat_deg, lon_deg):
-    """Tangent basis (c, e1, e2) at a (lat, lon) point."""
-    return tangent_basis_vec(unit(lat_deg, lon_deg))
+def tangent_basis(lat_deg, lng_deg):
+    """Tangent basis (c, e1, e2) at a (lat, lng) point."""
+    return tangent_basis_vec(unit(lat_deg, lng_deg))
 
 
 def gnomonic_xy(vecs, c, e1, e2):
