@@ -14,7 +14,8 @@ cells/            generation — one PEP 723 / uv-run script per DGGS + the cach
   gen_{h3,s2,a5,dggal}.py   (gen_dggal inlines the bit of the DGGAL engine it
                             needs; the fuller glue is in ../dggs_old/)
   out/              the Parquet cell sets (gitignored): {dggs}_r{res}.parquet
-survey.py         per-system aspect-ratio survey (-> out/histograms.png, extremes.png)
+survey.py         aspect-ratio survey -> out/histograms.png (cross-system at the
+                  working res), extremes.png, by_res_<system>.png (AR by resolution)
 calibrate.py      match S2/A5/DGGAL resolutions to an H3 r9 cell by area
 dnc_check.py      DNC invariants: working resolutions clean + DNC only at the
                   finest, monotone (pass/fail, every system; -> out/dnc_check.png)
