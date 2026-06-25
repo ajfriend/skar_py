@@ -34,6 +34,7 @@ import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
 TARGET = ('h3', cells.TARGET_RES['h3'])   # reference system + resolution
+SAMPLE = 5000               # random cells per resolution for the median
 # Candidate resolutions to search per system (each within its cached range).
 SCAN = {
     's2': range(10, 20),
@@ -45,13 +46,16 @@ SCAN = {
 
 
 def cell_area(dggs, res):
-    """Median cell area over the cached cells, in sparea's native units.
+    """Median cell area over a random cell sample, in sparea's native units.
 
-    Only ratios to the reference matter (the pick is by log-ratio), so there's
-    no need to convert steradians -> km^2 — the scale factor cancels.
+    The median is robust at a few thousand cells, so we area only a random
+    SAMPLE rather than the whole resolution (a random sample, not a prefix —
+    the file is sorted by cid, which is spatially clustered). Only ratios to
+    the reference matter (the pick is by log-ratio), so there's no need to
+    convert steradians -> km^2 — the scale factor cancels.
     """
     a = [sparea.area(ring, geo='latlng')
-         for _cid, ring in cells.load_cells(dggs, res)]
+         for _cid, ring in cells.load_cells_sample(dggs, res, SAMPLE)]
     return float(np.median(a))
 
 

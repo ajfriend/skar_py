@@ -179,3 +179,23 @@ def load_cells(dggs, res):
     for batch in pq.ParquetFile(path).iter_batches(columns=['cid', 'verts']):
         for row in batch.to_pylist():
             yield row['cid'], np.asarray(row['verts'], dtype=float)
+
+
+def load_cells_sample(dggs, res, n):
+    """Yield (cid, (M, 2) array) for up to `n` cells drawn at random from the
+    file. The rows are stored sorted by cid (spatially coherent), so a prefix
+    would be a clustered patch of the globe; random indices give a
+    representative sample of cell sizes. Reproducible via SEED.
+    """
+    path = cells_path(dggs, res)
+    if not path.exists():
+        raise FileNotFoundError(
+            f'{path} not found — generate the cell sets first with '
+            f'`just gen-cells` (or the matching scripts/dggs/cells/gen_*.py).')
+    table = pq.read_table(path, columns=['cid', 'verts'])
+    total = table.num_rows
+    if total > n:
+        idx = np.random.default_rng(SEED).choice(total, n, replace=False)
+        table = table.take(idx)
+    for cid, verts in zip(table['cid'].to_pylist(), table['verts'].to_pylist()):
+        yield cid, np.asarray(verts, dtype=float)
