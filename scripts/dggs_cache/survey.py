@@ -165,25 +165,27 @@ def plot_by_resolution(name, by_res):
     bins = np.linspace(1.0, amax, N_BINS + 1)
 
     n = len(res_list)
-    fig, axes = plt.subplots(n, 1, figsize=(9, 0.85 * n + 1), sharex=True,
+    fig, axes = plt.subplots(n, 1, figsize=(10, 1.4 * n + 1.2), sharex=True,
                              squeeze=False)
     for ax, res in zip(axes[:, 0], res_list):
         d = by_res[res]
         a, dnc = d['ars'], d['dnc']
+        red = bool(dnc)
         if a.size:
-            ax.hist(a, bins=bins, color=SYS_COLOR[name], edgecolor='white', linewidth=0.1)
+            ax.hist(a, bins=bins, color=SYS_COLOR[name], edgecolor='white', linewidth=0.3)
         ax.set_yscale('log')
-        ax.set_ylabel(f'r{res}', rotation=0, ha='right', va='center', fontsize=9,
-                      color='red' if dnc else 'black')
-        ax.tick_params(labelsize=6)
-        ax.grid(True, alpha=0.3)
-        ax.text(0.99, 0.9, f'n={a.size}' + (f'  DNC {dnc}' if dnc else ''),
-                transform=ax.transAxes, ha='right', va='top', fontsize=7,
-                color='red' if dnc else '0.45')
-    axes[-1, 0].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)')
+        ax.set_ylabel(f'r{res}', rotation=0, ha='right', va='center', labelpad=12,
+                      fontsize=13, fontweight='bold', color='red' if red else '0.2')
+        ax.tick_params(labelsize=10)
+        ax.grid(True, alpha=0.25)
+        note = f'n = {a.size:,}' + (f'      DNC {dnc:,}' if red else '')
+        ax.text(0.99, 0.88, note, transform=ax.transAxes, ha='right', va='top',
+                fontsize=11, color='red' if red else '0.4')
+    axes[-1, 0].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)', fontsize=12)
     fig.suptitle(f'{name.upper()} aspect-ratio distribution by resolution '
-                 f'(top=coarsest; shared bins 1.00–{amax:.2f}, log y)', fontsize=12)
-    fig.tight_layout(rect=(0, 0, 1, 0.997))
+                 f'(coarsest at top; shared bins 1.00–{amax:.2f}, log y)',
+                 fontsize=15)
+    fig.tight_layout(rect=(0, 0, 1, 0.995))
     out = OUT_DIR / f'by_res_{name}.png'
     fig.savefig(out, dpi=130)
     plt.close(fig)
