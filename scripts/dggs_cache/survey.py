@@ -153,39 +153,39 @@ def plot_extremes(results):
 
 
 def plot_by_resolution(name, by_res):
-    """One file per system: AR distribution at every cached resolution, one
-    panel each, with DNC counts noted (red title where DNC > 0)."""
+    """One tall file per system: AR distribution at every cached resolution
+    stacked vertically (coarsest at top, finest at bottom) on a shared aspect-
+    ratio axis — scroll to compare. Resolutions with DNC failures are labelled
+    in red."""
     res_list = sorted(by_res)
     # Shared bins across the system's resolutions (robust to rare coarse-cell
-    # outliers) so the per-resolution shapes are directly comparable.
+    # outliers) so the stacked shapes line up on one x-axis.
     allars = np.concatenate([d['ars'] for d in by_res.values() if d['ars'].size])
     amax = float(np.percentile(allars, 99.9))
     bins = np.linspace(1.0, amax, N_BINS + 1)
 
-    ncols = 6
-    nrows = -(-len(res_list) // ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(2.4 * ncols, 1.9 * nrows),
-                             sharex=True, squeeze=False)
-    for i, res in enumerate(res_list):
-        ax = axes[i // ncols][i % ncols]
+    n = len(res_list)
+    fig, axes = plt.subplots(n, 1, figsize=(9, 0.85 * n + 1), sharex=True,
+                             squeeze=False)
+    for ax, res in zip(axes[:, 0], res_list):
         d = by_res[res]
         a, dnc = d['ars'], d['dnc']
         if a.size:
             ax.hist(a, bins=bins, color=SYS_COLOR[name], edgecolor='white', linewidth=0.1)
         ax.set_yscale('log')
-        ax.set_title(f'r{res}  n={a.size}  DNC {dnc}', fontsize=8,
-                     color='red' if dnc else 'black')
+        ax.set_ylabel(f'r{res}', rotation=0, ha='right', va='center', fontsize=9,
+                      color='red' if dnc else 'black')
         ax.tick_params(labelsize=6)
         ax.grid(True, alpha=0.3)
-    for j in range(len(res_list), nrows * ncols):       # hide empty panels
-        axes[j // ncols][j % ncols].axis('off')
-
+        ax.text(0.99, 0.9, f'n={a.size}' + (f'  DNC {dnc}' if dnc else ''),
+                transform=ax.transAxes, ha='right', va='top', fontsize=7,
+                color='red' if dnc else '0.45')
+    axes[-1, 0].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)')
     fig.suptitle(f'{name.upper()} aspect-ratio distribution by resolution '
-                 f'(shared bins 1.00–{amax:.2f}, log y)', fontsize=13)
-    fig.supxlabel('aspect ratio')
-    fig.tight_layout(rect=(0, 0, 1, 0.98))
+                 f'(top=coarsest; shared bins 1.00–{amax:.2f}, log y)', fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.997))
     out = OUT_DIR / f'by_res_{name}.png'
-    fig.savefig(out, dpi=DPI)
+    fig.savefig(out, dpi=130)
     plt.close(fig)
     print(f'wrote {out}')
 
