@@ -153,6 +153,16 @@ def generate_big_small(dggs, target_res, max_res, n_big, n_small, seed, **callba
     generate_levels(dggs, max_res, n_small, seed, **callbacks)
 
 
+def available_resolutions(dggs, n, seed):
+    """Sorted resolutions that have a cached cell set for (dggs, n, seed)."""
+    import re
+    suffix = f'_n{n}_s{seed:08x}.parquet'
+    pat = re.compile(rf'^{re.escape(dggs)}_r(\d+){re.escape(suffix)}$')
+    res = [int(m.group(1)) for p in OUT_DIR.glob(f'{dggs}_r*{suffix}')
+           if (m := pat.match(p.name))]
+    return sorted(res)
+
+
 def load_cells(dggs, res, n, seed):
     """Yield (cid, (M, 2) lat/lng array) for a generated cell set."""
     path = cells_path(dggs, res, n, seed)

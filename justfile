@@ -94,9 +94,11 @@ dggs-stress: _dggs-sync
     UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_stress.py
 
 # Sweep every system across all resolutions: map the DNC boundary and flag any
-# non-monotonic / unexpected did_not_converge. Writes out/dnc_sweep.png.
-dnc-sweep: _dggs-sync
-    UV_PROJECT_ENVIRONMENT={{dggs_env}} uv run --no-sync scripts/dggs/dnc_sweep.py
+# non-monotonic / unexpected did_not_converge. Reads the small cell sets (run
+# `just gen-cells` first); native (skar + the cells group), no Rosetta. Writes
+# out/dnc_sweep.png.
+dnc-sweep: reinstall
+    uv run --group cells scripts/dggs/dnc_sweep.py
 
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.

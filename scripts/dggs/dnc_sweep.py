@@ -1,33 +1,32 @@
-"""H3/S2/A5 cross-resolution DNC sweep — boundary + non-monotonicity.
+"""Cross-resolution DNC sweep — boundary + non-monotonicity, all systems.
 
-Solves cells across every resolution of H3 (0..15), S2 (levels 0..30) and
-A5 (resolutions 0..30) with skar's DEFAULT settings — `skar.solve(v,
-geo='vec3')`, gap_tol=1e-6, max_outer=100 — and characterizes where
-`did_not_converge` (DNC) appears.
-
-H3 stays clean across all its resolutions (its finest, r15, is still ~0.9
-m^2). S2/A5 *will* DNC at their finest resolutions: their sub-metre cells
-hit a genuine f64 duality-gap floor (kappa ~ 1e9), which is correct
-behaviour (see h3_gap_floor_report.md / skar_zig dggs_dnc_test.zig: ~22%
-of S2 L30 and ~47% of A5 r30 DNC at 1e-6). What we're hunting for is:
+Solves the cells of every resolution of H3, S2, A5, and the DGGAL ISEA7H/IVEA7H
+hex grids with skar's DEFAULT settings (`skar.solve(v, geo='vec3')`,
+gap_tol=1e-6) and characterizes where `did_not_converge` (DNC) appears:
   1. the DNC boundary (onset resolution and how the fraction rises);
-  2. NON-MONOTONIC behaviour — a coarser resolution with more DNC than a
-     finer one, or a "DNC island" (DNC>0 with a finer resolution at 0),
-     i.e. the H3-r7-r10-style surprise that v0.2.0 fixed;
+  2. NON-MONOTONIC behaviour — a coarser resolution with more DNC than a finer
+     one, or a "DNC island" (the H3-r7-r10-style surprise that v0.2.0 fixed);
   3. any unexpected DNCs, dumped reproducibly to out/dnc_sweep_cells.txt.
 
-Per resolution: enumerate every cell when there are few enough
-(<= ENUMERATE_MAX, exact/noise-free), else sample N_PER_RES random cells
-(H3 always also tests all 12 pentagons, even when sampling).
+H3/ISEA7H/IVEA7H stay clean across all resolutions; S2/A5 DNC at their finest,
+sub-metre resolutions (a genuine f64 duality-gap floor, ~22% of S2 L30 / ~47% of
+A5 r30 at 1e-6 — see h3_gap_floor_report.md).
 
-Writes a 2-panel PNG (DNC fraction + worst converged gap vs resolution)
-to out/dnc_sweep.png and prints per-system tables + a monotonicity report.
+Reads the pre-generated *small* cell sets (scripts/dggs/cells/, `just gen-cells`
+first), so it imports no DGGS library and runs natively. The small set covers
+every resolution at N_SMALL cells — coarser statistics than a dedicated sweep
+(so NOISE_TOL is relaxed accordingly), but enough to map the boundary. Note it
+does not special-case the 12 H3 pentagons (a random set rarely hits them);
+H3 is clean regardless.
+
+Writes a 2-panel PNG (DNC fraction + worst converged gap vs resolution) to
+out/dnc_sweep.png and prints per-system tables + a monotonicity report.
 
 Run with:  just dnc-sweep
-       (or: uv run --group dggs scripts/dggs/dnc_sweep.py)
 No CLI args (project convention) — edit the constants below in place.
 """
 
+import sys
 import time
 from pathlib import Path
 
@@ -37,186 +36,53 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-import a5_fast as a5  # Rust/PyO3 A5 binding (~30x faster than pure-Python pya5)
-import h3
-import s2sphere
-
 import skar
 
-import dggal_common  # Ecere DGGAL binding glue (ISEA/IVEA hex, rHEALPix, ...)
+# _common.py (the cell-set reader) lives in the cells/ subfolder.
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'cells'))
+import _common as cells  # noqa: E402
 
 # ----- knobs -------------------------------------------------------------
+N_SMALL = 25_000          # small-set N the generators wrote
 SEED = 0xC0FFEE
-# random cells per sampled resolution (DGGAL grids added from the registry)
-N_PER_RES = {'h3': 500_000, 's2': 500_000, 'a5': 100_000}
-ENUMERATE_MAX = 400_000   # resolutions with <= this many cells: test all
-CHUNK = 50_000            # sampling batch size (keeps memory flat)
-NOISE_TOL = 5e-4          # monotonicity: ignore DNC-fraction dips below this
+NOISE_TOL = 1e-2          # monotonicity: ignore DNC-fraction dips below this
+                          # (sampling noise at N_SMALL is ~0.3%)
 MAX_DUMP_PER_RES = 50     # cells written per flagged resolution
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 PNG = OUT_DIR / 'dnc_sweep.png'
 CELLS_FILE = OUT_DIR / 'dnc_sweep_cells.txt'
 
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2'}
-SYS_LABEL = {'h3': 'H3', 's2': 'S2', 'a5': 'A5'}
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
+SYS_LABEL = {'h3': 'H3', 's2': 'S2', 'a5': 'A5',
+             'isea7h': 'ISEA7H', 'ivea7h': 'IVEA7H'}
+SYSTEMS = list(SYS_COLOR)
 # -------------------------------------------------------------------------
 
 
-# ----- H3 adapter --------------------------------------------------------
-def h3_count(res):
-    return h3.get_num_cells(res)
-
-
-def h3_enumerate(res):
-    if res == 0:
-        yield from h3.get_res0_cells()
-    else:
-        for c0 in h3.get_res0_cells():
-            yield from h3.cell_to_children(c0, res)
-
-
-def h3_sample(res, n, rng):
-    yield from h3.get_pentagons(res)  # always test pentagons, even when sampling
-    done = 0
-    while done < n:
-        k = min(CHUNK, n - done)
-        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
-            yield h3.latlng_to_cell(float(lat), float(lng), res)
-        done += k
-
-
-def h3_verts(cid):
-    return skar.to_vec3(h3.cell_to_boundary(cid), geo='latlng')  # ring is (lat, lng)
-
-
-def h3_id(cid):
-    return str(cid)
-
-
-# ----- S2 adapter --------------------------------------------------------
-def s2_count(res):
-    return 6 * 4 ** res
-
-
-def s2_enumerate(res):
-    return s2sphere.CellId.walk(res)
-
-
-def s2_sample(res, n, rng):
-    done = 0
-    while done < n:
-        k = min(CHUNK, n - done)
-        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
-            cid = s2sphere.CellId.from_lat_lng(
-                s2sphere.LatLng.from_degrees(float(lat), float(lng)))
-            yield cid.parent(res)
-        done += k
-
-
-def s2_verts(cid):
-    cell = s2sphere.Cell(cid)
-    v = np.array([tuple(cell.get_vertex(i))[:3] for i in range(4)], dtype=float)
-    v /= np.linalg.norm(v, axis=1, keepdims=True)
-    return v
-
-
-def s2_id(cid):
-    return format(cid.id(), '016x')
-
-
-# ----- A5 adapter --------------------------------------------------------
-def a5_count(res):
-    return a5.get_num_cells(res)
-
-
-def a5_enumerate(res):
-    res0 = a5.get_res0_cells()
-    if res == 0:
-        yield from res0
-    else:
-        for c0 in res0:
-            yield from a5.cell_to_children(c0, res)
-
-
-def a5_sample(res, n, rng):
-    done = 0
-    while done < n:
-        k = min(CHUNK, n - done)
-        for lng, lat in dggal_common.sample_uniform_lnglat(k, rng):
-            yield a5.lonlat_to_cell(float(lng), float(lat), res)
-        done += k
-
-
-def a5_verts(cid):
-    ring = a5.cell_to_boundary(cid)  # closed ring of (lng, lat)
-    if len(ring) >= 2 and tuple(ring[0]) == tuple(ring[-1]):
-        ring = ring[:-1]
-    latlng = [(lat_, lng_) for lng_, lat_ in ring]
-    return skar.to_vec3(latlng, geo='latlng_deg')
-
-
-def a5_id(cid):
-    return a5.u64_to_hex(cid)
-
-
-SYSTEMS = {
-    'h3': dict(count=h3_count, enumerate=h3_enumerate, sample=h3_sample,
-               verts=h3_verts, cid_str=h3_id, res_range=range(0, 16)),
-    's2': dict(count=s2_count, enumerate=s2_enumerate, sample=s2_sample,
-               verts=s2_verts, cid_str=s2_id, res_range=range(0, 31)),
-    'a5': dict(count=a5_count, enumerate=a5_enumerate, sample=a5_sample,
-               verts=a5_verts, cid_str=a5_id, res_range=range(0, 31)),
-}
-
-
-# DGGAL systems: the Adapter exposes count/enumerate/sample/verts/cid_str in
-# the right shape, so each registry row registers as one dict of bound methods
-# (res_range spans the grid's full level range). Adding a grid is one line in
-# dggal_common.DGGAL_SYSTEMS.
-for _k, _s in dggal_common.DGGAL_SYSTEMS.items():
-    _ad = dggal_common.Adapter(_s['cls'])
-    SYSTEMS[_k] = dict(count=_ad.count, enumerate=_ad.enumerate,
-                       sample=_ad.sample, verts=_ad.verts, cid_str=_ad.cid_str,
-                       res_range=range(0, _ad.max_level() + 1))
-    SYS_COLOR[_k] = _s['color']
-    SYS_LABEL[_k] = _s['cls']
-    N_PER_RES[_k] = 100_000
-
-
 # ----- sweep -------------------------------------------------------------
-def cells_for_res(sys, res, rng):
-    if SYSTEMS[sys]['count'](res) <= ENUMERATE_MAX:
-        return 'all', SYSTEMS[sys]['enumerate'](res)
-    return 'sample', SYSTEMS[sys]['sample'](res, N_PER_RES[sys], rng)
-
-
 def sweep_system(sys):
-    """Return a list of per-resolution record dicts."""
-    adapter = SYSTEMS[sys]
-    rng = np.random.default_rng(SEED)
+    """Return a list of per-resolution record dicts for `sys`'s small set."""
     rows = []
     print(f'\n=== {SYS_LABEL[sys]} ===')
-    print(f'{"res":>3} {"mode":>7} {"tested":>10} {"dnc":>8} {"dnc%":>7} '
+    print(f'{"res":>3} {"tested":>10} {"dnc":>8} {"dnc%":>7} '
           f'{"conv_gap":>10} {"dnc_gap":>10} {"max_it":>6} {"secs":>6}')
-    for res in adapter['res_range']:
-        mode, stream = cells_for_res(sys, res, rng)
+    for res in cells.available_resolutions(sys, N_SMALL, SEED):
         t0 = time.perf_counter()
         tested = dnc = infeas = raised = 0
         conv_worst = 0.0
         max_it = 0
         dnc_gaps = []
         dump = []  # (cid_str, gap, verts) for reproduction
-        for cid in stream:
+        for cid, latlng in cells.load_cells(sys, res, N_SMALL, SEED):
             tested += 1
+            v = skar.to_vec3(latlng, geo='latlng_deg')
             try:
-                v = adapter['verts'](cid)
                 r = skar.solve(v, geo='vec3')  # DEFAULT settings
             except Exception as e:
                 raised += 1
                 if len(dump) < MAX_DUMP_PER_RES:
-                    dump.append((adapter['cid_str'](cid),
-                                 f'raised:{type(e).__name__}', None))
+                    dump.append((cid, f'raised:{type(e).__name__}', None))
                 continue
             if isinstance(r, skar.Converged):
                 conv_worst = max(conv_worst, r.gap)
@@ -227,20 +93,16 @@ def sweep_system(sys):
                 dnc += 1
                 dnc_gaps.append(r.gap)
                 if len(dump) < MAX_DUMP_PER_RES:
-                    try:
-                        verts = adapter['verts'](cid)
-                    except Exception:
-                        verts = None
-                    dump.append((adapter['cid_str'](cid), r.gap, verts))
+                    dump.append((cid, r.gap, v))
         dt = time.perf_counter() - t0
         bad = dnc + infeas + raised
         frac = bad / tested if tested else 0.0
         dnc_gap_med = float(np.median(dnc_gaps)) if dnc_gaps else float('nan')
-        rows.append(dict(sys=sys, res=res, mode=mode, tested=tested, dnc=dnc,
+        rows.append(dict(sys=sys, res=res, tested=tested, dnc=dnc,
                          infeas=infeas, raised=raised, bad=bad, frac=frac,
                          conv_worst=conv_worst, dnc_gap_med=dnc_gap_med,
                          max_it=max_it, dump=dump))
-        print(f'{res:>3} {mode:>7} {tested:>10,} {bad:>8} {100*frac:>6.2f}% '
+        print(f'{res:>3} {tested:>10,} {bad:>8} {100*frac:>6.2f}% '
               f'{conv_worst:>10.2e} {dnc_gap_med:>10.2e} {max_it:>6} {dt:>6.1f}')
     return rows
 
@@ -307,8 +169,8 @@ def report(all_rows):
     print(f'\nwrote flagged/onset DNC cells to {CELLS_FILE}')
     if not any_flag:
         print('RESULT: no unexpected DNCs — DNC is monotonic in resolution, '
-              'consistent with the documented f64 floor (H3/ISEA7H stay clean; '
-              'S2/A5 DNC only at the finest sub-metre levels).')
+              'consistent with the documented f64 floor (H3/ISEA7H/IVEA7H stay '
+              'clean; S2/A5 DNC only at the finest sub-metre levels).')
     else:
         print('RESULT: unexpected DNC pattern found — inspect the dump above.')
 
