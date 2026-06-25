@@ -165,8 +165,8 @@ def plot_by_resolution(name, by_res):
     bins = np.linspace(1.0, amax, N_BINS + 1)
 
     n = len(res_list)
-    fig, axes = plt.subplots(n, 1, figsize=(10, 1.4 * n + 1.2), sharex=True,
-                             squeeze=False)
+    fig_h = 1.4 * n + 1.4
+    fig, axes = plt.subplots(n, 1, figsize=(10, fig_h), sharex=True, squeeze=False)
     for ax, res in zip(axes[:, 0], res_list):
         d = by_res[res]
         a, dnc = d['ars'], d['dnc']
@@ -182,10 +182,12 @@ def plot_by_resolution(name, by_res):
         ax.text(0.99, 0.88, note, transform=ax.transAxes, ha='right', va='top',
                 fontsize=11, color='red' if red else '0.4')
     axes[-1, 0].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)', fontsize=12)
+    # Reserve a fixed ~1in of headroom for the suptitle so it never lands on the
+    # top panel, however tall the stack gets (tight_layout's rect is fractional).
     fig.suptitle(f'{name.upper()} aspect-ratio distribution by resolution '
                  f'(coarsest at top; shared bins 1.00–{amax:.2f}, log y)',
-                 fontsize=15)
-    fig.tight_layout(rect=(0, 0, 1, 0.995))
+                 fontsize=15, y=1 - 0.4 / fig_h, va='top')
+    fig.tight_layout(rect=(0, 0, 1, 1 - 1.0 / fig_h))
     out = OUT_DIR / f'by_res_{name}.png'
     fig.savefig(out, dpi=130)
     plt.close(fig)
