@@ -27,6 +27,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import NullFormatter
 
 import skar
 
@@ -164,6 +165,13 @@ def plot_by_resolution(name, by_res):
     allars = np.concatenate([d['ars'] for d in by_res.values() if d['ars'].size])
     amax = float(np.percentile(allars, 99.9))
     bins = np.linspace(1.0, amax, N_BINS + 1)
+    # Put the n/DNC note on the emptier horizontal half: compare the population's
+    # mass in the left vs right third of the shared bins (A5 packs to the right ->
+    # label left; the left-peaked grids like H3/S2 -> label right).
+    mass = np.histogram(allars, bins=bins)[0]
+    third = max(len(mass) // 3, 1)
+    note_x, note_ha = ((0.985, 'right') if mass[:third].sum() >= mass[-third:].sum()
+                       else (0.015, 'left'))
 
     n = len(res_list)
     fig_h = 1.4 * n + 1.4
@@ -172,15 +180,23 @@ def plot_by_resolution(name, by_res):
         d = by_res[res]
         a, dnc = d['ars'], d['dnc']
         red = bool(dnc)
-        if a.size:
-            ax.hist(a, bins=bins, color=SYS_COLOR[name], edgecolor='white', linewidth=0.3)
+        counts = (ax.hist(a, bins=bins, color=SYS_COLOR[name],
+                          edgecolor='white', linewidth=0.3)[0]
+                  if a.size else np.zeros(1))
         ax.set_yscale('log')
+        # Low-count resolutions span <1 decade, where matplotlib promotes and
+        # labels sub-decade ticks (2x10^0, 6x10^0, ...) — clutter. Pin the major
+        # ticks to exact powers of ten (up to the panel's tallest bin) and leave
+        # the minor ticks as unlabelled gridline marks.
+        maxc = max(int(counts.max()), 1)
+        ax.set_yticks([10.0 ** k for k in range(int(np.floor(np.log10(maxc))) + 1)])
+        ax.yaxis.set_minor_formatter(NullFormatter())
         ax.set_ylabel(f'r{res}', rotation=0, ha='right', va='center', labelpad=12,
                       fontsize=13, fontweight='bold', color='red' if red else '0.2')
         ax.tick_params(labelsize=10)
         ax.grid(True, alpha=0.25)
         note = f'n = {a.size:,}' + (f'      DNC {dnc:,}' if red else '')
-        ax.text(0.99, 0.88, note, transform=ax.transAxes, ha='right', va='top',
+        ax.text(note_x, 0.9, note, transform=ax.transAxes, ha=note_ha, va='top',
                 fontsize=11, color='red' if red else '0.4')
     axes[-1, 0].set_xlabel('aspect ratio (shared bins, gap_tol = 1e-6)', fontsize=12)
     # Reserve a fixed ~1in of headroom for the suptitle so it never lands on the

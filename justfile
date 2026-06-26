@@ -119,6 +119,8 @@ purge:
     just _rm .mypy_cache
     just _rm .ruff_cache
     just _rm 'libskar.*'
+    just _rm out
+    just _rm zig-pkg
     uv cache clean skar
 
 _rm pattern:
