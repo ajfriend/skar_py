@@ -5,8 +5,9 @@ DGGS library) and solves every cell with `skar` at the strict default
 gap_tol=1e-6. Writes:
 
 - histograms.png — per-system AR distribution at the H3-r9-matched working
-  resolution (H3 r9; S2 L15 0.76x; A5 r14 1.15x; ISEA7H/IVEA7H r10 1.65x —
-  recompute the matches with `just calibrate`), shared bins for comparability.
+  resolution (H3 r9; S2 L15 0.76x; A5 r14 1.15x; ISEA7H/IVEA7H r10 1.65x;
+  rHEALPix r9 ~2x — recompute the matches with `just calibrate`), shared bins
+  for comparability.
 - extremes.png — each system's best (most circular) and worst cell at that
   resolution, with its enclosing ellipse.
 - by_res_<system>.png — one file per system: the AR distribution at *every*

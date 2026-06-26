@@ -59,7 +59,7 @@ One `uv run` per system writes all its resolutions:
 uv run scripts/dggs_cache/cells/gen_h3.py     # -> h3_r0.parquet .. h3_r15.parquet
 uv run scripts/dggs_cache/cells/gen_s2.py
 uv run scripts/dggs_cache/cells/gen_a5.py
-uv run scripts/dggs_cache/cells/gen_dggal.py  # isea7h + ivea7h
+uv run scripts/dggs_cache/cells/gen_dggal.py  # isea7h + ivea7h + rhealpix
 ```
 
 DGGAL ships an arch-broken macOS arm64 wheel, so on Apple Silicon `gen_dggal`
