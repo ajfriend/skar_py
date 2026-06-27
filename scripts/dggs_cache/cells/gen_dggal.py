@@ -68,7 +68,7 @@ _app = Application(appGlobals=globals())
 pydggal_setup(_app)
 
 # DGGRS class name per system (adding a grid is one row here).
-SYSTEMS = {'isea7h': 'ISEA7H', 'ivea7h': 'IVEA7H'}
+SYSTEMS = {'isea7h': 'ISEA7H', 'ivea7h': 'IVEA7H', 'rhealpix': 'rHEALPix'}
 
 
 class Adapter:
@@ -87,6 +87,13 @@ class Adapter:
         stripped; handles hexagons and the 12 pentagons)."""
         ring = [(float(p.lat), float(p.lon))
                 for p in self.dggrs.getZoneWGS84Vertices(zone)]
+        # DGGAL's corner method collapses 2 of 4 corners to (0, 0) for some
+        # rHEALPix polar-cap/equatorial-seam cells (a dggal bug). The collapse
+        # shows up as duplicate vertices; fall back to the edge-refined boundary,
+        # which traces the real cell correctly.
+        if len(set(ring)) < len(ring):
+            ring = [(float(p.lat), float(p.lon))
+                    for p in self.dggrs.getZoneRefinedWGS84Vertices(zone, 0)]
         if len(ring) >= 2 and ring[0] == ring[-1]:
             ring = ring[:-1]
         return ring

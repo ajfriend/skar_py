@@ -62,11 +62,12 @@ N_BIG, N_SMALL = 100_000, 25_000
 # Working ("target") resolution per system: the finest in actual use, matched to
 # an H3 r9 cell by calibrate.py. Used by the readers (survey, dnc_check,
 # calibrate's anchor) and by generation to pick N_BIG vs N_SMALL per resolution.
-TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10}
+TARGET_RES = {'h3': 9, 's2': 15, 'a5': 14, 'isea7h': 10, 'ivea7h': 10, 'rhealpix': 9}
 # Per-system plot color (matplotlib cycle index). Display metadata for the
 # analyses (survey, dnc_check) — kept here with the rest of the system registry,
 # so adding a DGGS is one place. No effect on generation.
-SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4'}
+SYS_COLOR = {'h3': 'C0', 's2': 'C1', 'a5': 'C2', 'isea7h': 'C3', 'ivea7h': 'C4',
+             'rhealpix': 'C5'}
 # -------------------------------------------------------------------------
 
 # fixed_size_list(2): each vertex is exactly [lat, lng] deg; the outer list is
