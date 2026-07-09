@@ -37,6 +37,7 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
+from matplotlib.colors import to_hex
 
 import skar
 
@@ -51,11 +52,11 @@ AMAX_PCT = 99.99         # global percentile that sets the fixed grid's top edge
 GLOBE_MAX_CELLS = 80_000  # a system's globe shows the largest res at/under this
 
 SYSTEMS = list(cells.TARGET_RES)
-# matplotlib 'C0'..'C5' -> hex, so the web colors match the survey PNGs exactly.
-MPL_CYCLE = {'C0': '#1f77b4', 'C1': '#ff7f0e', 'C2': '#2ca02c',
-             'C3': '#d62728', 'C4': '#9467bd', 'C5': '#8c564b'}
-SYS_COLOR = {s: MPL_CYCLE[cells.SYS_COLOR[s]] for s in SYSTEMS}
-SYS_LABEL = {s: f'{s.upper()} {"L" if s == "s2" else "r"}' for s in SYSTEMS}
+# matplotlib resolves 'C0'..'C5' itself, so the web colors match the survey
+# PNGs exactly.
+SYS_COLOR = {s: to_hex(cells.SYS_COLOR[s]) for s in SYSTEMS}
+SYS_LABEL = {s: s.upper() for s in SYSTEMS}
+RES_PREFIX = {s: 'L' if s == 's2' else 'r' for s in SYSTEMS}  # S2 calls them levels
 
 OUT_DIR = Path(__file__).resolve().parent / 'out'
 GLOBE_DIR = OUT_DIR / 'globe'
@@ -63,40 +64,34 @@ GLOBE_DIR = OUT_DIR / 'globe'
 
 
 def solve_ar(latlng):
-    """AR for one cell's (M,2) lat/lng ring, or None if it didn't converge."""
+    """AR for one cell's (M,2) lat/lng ring, or NaN if it didn't converge."""
     r = skar.solve(skar.to_vec3(latlng, geo='latlng_deg'), geo='vec3', gap_tol=GAP_TOL)
-    return r.aspect_ratio if isinstance(r, skar.Converged) else None
+    return r.aspect_ratio if isinstance(r, skar.Converged) else np.nan
 
 
 def sweep_all():
     """Solve every cell of every cached (system, resolution). Returns
-    {system: {res: np.ndarray of converged ARs}}  and  {system: {res: dnc}}."""
-    ars, dnc = {}, {}
+    {system: {res: np.ndarray of per-cell ARs}} in load_cells order, NaN where
+    the cell didn't converge — build_globe reuses these arrays cell-for-cell,
+    so nothing is solved twice."""
+    ars = {}
     for s in SYSTEMS:
-        ars[s], dnc[s] = {}, {}
+        ars[s] = {}
         t0 = time.perf_counter()
         total = 0
         for res in cells.available_resolutions(s):
-            vals, miss = [], 0
-            for _cid, latlng in cells.load_cells(s, res):
-                ar = solve_ar(latlng)
-                if ar is None:
-                    miss += 1
-                else:
-                    vals.append(ar)
-            ars[s][res] = np.asarray(vals)
-            dnc[s][res] = miss
-            total += len(vals) + miss
+            ars[s][res] = np.asarray([solve_ar(latlng)
+                                      for _cid, latlng in cells.load_cells(s, res)])
+            total += ars[s][res].size
         print(f'[{s}] {total:,} cells over {len(ars[s])} resolutions '
               f'in {time.perf_counter() - t0:.1f}s')
-    return ars, dnc
+    return ars
 
 
-def build_histograms(ars, dnc):
-    """Fixed-grid histograms + stats per (system, res). Returns (payload, edges,
-    amax). The grid is shared across every system so the page can overlay and
-    re-bin them on one axis."""
-    allars = np.concatenate([a for byres in ars.values()
+def build_histograms(ars):
+    """Fixed-grid histograms + stats per (system, res). The grid is shared
+    across every system so the page can overlay and re-bin them on one axis."""
+    allars = np.concatenate([a[~np.isnan(a)] for byres in ars.values()
                              for a in byres.values() if a.size])
     amax = float(np.percentile(allars, AMAX_PCT))
     edges = np.linspace(1.0, amax, NBINS + 1)
@@ -104,29 +99,26 @@ def build_histograms(ars, dnc):
     data = {}
     for s in SYSTEMS:
         data[s] = {}
-        for res, a in ars[s].items():
+        for res, cell_ars in ars[s].items():
+            a = cell_ars[~np.isnan(cell_ars)]
             if not a.size:
                 continue
             counts = np.histogram(a, bins=edges)[0]
-            overflow = int((a > amax).sum())
             data[s][str(res)] = {
                 'counts': counts.astype(int).tolist(),
-                'overflow': overflow,
                 'n': int(a.size),
-                'dnc': int(dnc[s][res]),
+                'dnc': int(np.isnan(cell_ars).sum()),
                 'min': float(a.min()),
                 'median': float(np.median(a)),
                 'p99': float(np.percentile(a, 99)),
                 'max': float(a.max()),
-                'deciles': [float(x) for x in np.percentile(a, np.arange(0, 101, 10))],
             }
-    payload = {
+    return {
         'edges': [float(x) for x in edges],   # NBINS+1 edges; counts[i] in [edges[i], edges[i+1])
         'nbins': NBINS,
         'amax': amax,
         'data': data,
     }
-    return payload, edges, amax
 
 
 def globe_resolutions(s):
@@ -144,30 +136,29 @@ def globe_resolutions(s):
     return out
 
 
-def build_globe():
+def build_globe(ars):
     """Write ajglobe's flat binaries per coarse (system, res): pos.f32
     ([lng, lat] vertex pairs, open rings), idx.u32 (ring starts), ar.f32
-    (NaN = DNC), ids.json. Returns {system: [res, ...]} and the shared AR max
-    over all globe cells."""
+    (NaN = DNC), ids.json. Reuses the swept AR arrays (same load_cells order),
+    so this pass only re-reads geometry. Returns {system: [res, ...]} and the
+    shared AR max over all globe cells."""
     GLOBE_DIR.mkdir(parents=True, exist_ok=True)
     avail, globe_max = {}, 1.0
     for s in SYSTEMS:
         res_list = globe_resolutions(s)
         avail[s] = res_list
         for res in res_list:
-            pos, starts, ars, ids = [], [0], [], []
+            cell_ars = ars[s][res]
+            globe_max = max(globe_max, float(np.nanmax(cell_ars)))
+            pos, starts, ids = [], [0], []
             for cid, latlng in cells.load_cells(s, res):
-                ar = solve_ar(latlng)
-                if ar is not None:
-                    globe_max = max(globe_max, ar)
                 pos.append(np.asarray(latlng, dtype='<f4')[:, ::-1])  # -> [lng, lat]
                 starts.append(starts[-1] + len(latlng))
-                ars.append(np.nan if ar is None else ar)
                 ids.append(cid)
             stem = GLOBE_DIR / f'{s}_r{res}'
             np.concatenate(pos).tofile(f'{stem}_pos.f32')
             np.asarray(starts, dtype='<u4').tofile(f'{stem}_idx.u32')
-            np.asarray(ars, dtype='<f4').tofile(f'{stem}_ar.f32')
+            cell_ars.astype('<f4').tofile(f'{stem}_ar.f32')
             Path(f'{stem}_ids.json').write_text(json.dumps(ids))
             print(f'  globe {s} r{res}: {len(ids)} cells -> {stem.name}_*')
     return avail, globe_max
@@ -176,26 +167,26 @@ def build_globe():
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     print('solving all cells...')
-    ars, dnc = sweep_all()
+    ars = sweep_all()
 
     print('building histograms...')
-    hist, _edges, amax = build_histograms(ars, dnc)
+    hist = build_histograms(ars)
     (OUT_DIR / 'histograms.json').write_text(json.dumps(hist))
-    print(f'wrote histograms.json (amax={amax:.4f}, {NBINS} bins)')
+    print(f'wrote histograms.json (amax={hist["amax"]:.4f}, {NBINS} bins)')
 
     print('building globe binaries...')
-    globe_avail, globe_max = build_globe()
+    globe_avail, globe_max = build_globe(ars)
 
     manifest = {
         'systems': SYSTEMS,
         'colors': SYS_COLOR,
         'labels': SYS_LABEL,
+        'res_prefix': RES_PREFIX,
         'target_res': cells.TARGET_RES,
         'hist_res': {s: sorted(int(r) for r in hist['data'].get(s, {})) for s in SYSTEMS},
         'globe_res': globe_avail,
         'globe_ar_max': globe_max,
-        'amax': amax,
-        'nbins': NBINS,
+        'gap_tol': GAP_TOL,
     }
     (OUT_DIR / 'manifest.json').write_text(json.dumps(manifest, indent=2))
     print(f'wrote manifest.json (globe AR range 1..{globe_max:.4f})')

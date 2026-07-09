@@ -33,10 +33,11 @@ just web-data   # just (re)build the data
   winding — ajglobe triangulates by ring topology, so there's no orientation or
   antimeridian preprocessing.
 - `manifest.json` — what exists, per-system web colors (matched to the survey
-  PNGs), the bin grid, and the shared globe AR max.
+  PNGs) and labels, the solve tolerance, and the shared globe AR max.
 
-The page (`index.html` + `app.js`; d3 + Observable Plot from a CDN for the
-histograms, vendored ajglobe for the globes):
+The page (`index.html` + `app.js`, with page-shared helpers in `_shared.js`;
+d3 + Observable Plot from a CDN for the histograms, vendored ajglobe for the
+globes):
 
 - **Histograms** (Observable Plot) — pick any number of `system · resolution`
   series; one shared aspect-ratio axis, a bins slider, density/count, and

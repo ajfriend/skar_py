@@ -1,18 +1,24 @@
-"""Solve aspect ratios for the full-enumeration ivea7h geometry.
+"""Solve aspect ratios for the full-enumeration geometry.
 
 Pass two of the full-globe pipeline: reads the binaries written by
-gen_ivea7h_full_geom.py (every cell at r5/r6), solves each cell with skar
-(native, no DGGS library), and writes one more binary per level:
+gen_ivea7h_full_geom.py (every cell of SYSTEM, whatever levels exist on disk),
+solves each cell with skar (native, no DGGS library), and writes one more
+binary per level:
 
-  ivea7h_r{res}_ar.f32   Float32 aspect ratio per cell (NaN = did-not-converge),
-                         len = n_cells. Order matches the _idx.u32 cells.
+  {SYSTEM}_r{res}_ar.f32   Float32 aspect ratio per cell (NaN = did-not-
+                           converge), len = n_cells. Order matches _idx.u32.
+
+Levels are discovered from the *_pos.f32 files, so there is no resolution list
+to keep in sync with the gen pass. A level whose _ar.f32 already exists is
+skipped — delete it to re-solve (e.g. after changing GAP_TOL).
 
 The browser (globe_full.html) loads pos + idx + ar and colors on the GPU.
 
 Run with:  just web-full   (after `just web-full-geom`)
-No CLI args (project convention) — edit RES_LIST below.
+No CLI args (project convention) — edit the constants below.
 """
 
+import re
 import time
 from pathlib import Path
 
@@ -20,34 +26,35 @@ import numpy as np
 
 import skar
 
-RES_LIST = [1, 2, 3, 5, 6]
+SYSTEM = 'ivea7h'
 GAP_TOL = 1e-6
 OUT = Path(__file__).resolve().parent / 'out' / 'full'
 
 
 def main():
-    for res in RES_LIST:
-        pos_path = OUT / f'ivea7h_r{res}_pos.f32'
-        idx_path = OUT / f'ivea7h_r{res}_idx.u32'
-        ar_path = OUT / f'ivea7h_r{res}_ar.f32'
-        if not pos_path.exists():
-            print(f'r{res}: {pos_path.name} missing — run `just web-full-geom` first.')
-            continue
-        if ar_path.exists() and ar_path.stat().st_mtime >= pos_path.stat().st_mtime:
-            print(f'r{res}: {ar_path.name} up to date — skipping.')
+    pos_paths = sorted(OUT.glob(f'{SYSTEM}_r*_pos.f32'),
+                       key=lambda p: int(re.search(r'_r(\d+)_', p.name)[1]))
+    if not pos_paths:
+        print(f'no {SYSTEM} geometry in {OUT} — run `just web-full-geom` first.')
+        return
+    for pos_path in pos_paths:
+        res = int(re.search(r'_r(\d+)_', pos_path.name)[1])
+        ar_path = OUT / f'{SYSTEM}_r{res}_ar.f32'
+        if ar_path.exists():
+            print(f'r{res}: {ar_path.name} exists — skipping (delete to re-solve).')
             continue
         pos = np.fromfile(pos_path, dtype='<f4').reshape(-1, 2)   # [lng, lat]
-        idx = np.fromfile(idx_path, dtype='<u4')
+        idx = np.fromfile(OUT / f'{SYSTEM}_r{res}_idx.u32', dtype='<u4')
         n = len(idx) - 1
-        print(f'ivea7h r{res}: solving {n:,} cells...', flush=True)
+        print(f'{SYSTEM} r{res}: solving {n:,} cells...', flush=True)
         t0 = time.perf_counter()
+        # One vectorized deg->vec3 pass over all vertices; per-cell slices are
+        # contiguous views, so the hot loop allocates nothing.
+        xyz = skar.to_vec3(pos[:, ::-1].astype(float), geo='latlng_deg')
         ar = np.empty(n, dtype='<f4')
         dnc = 0
         for i in range(n):
-            ring = pos[idx[i]:idx[i + 1]]                 # (k, 2) [lng, lat]
-            latlng = ring[:, ::-1].astype(float)          # (k, 2) [lat, lng]
-            r = skar.solve(skar.to_vec3(latlng, geo='latlng_deg'),
-                           geo='vec3', gap_tol=GAP_TOL)
+            r = skar.solve(xyz[idx[i]:idx[i + 1]], geo='vec3', gap_tol=GAP_TOL)
             if isinstance(r, skar.Converged):
                 ar[i] = r.aspect_ratio
             else:

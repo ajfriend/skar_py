@@ -3,6 +3,7 @@
 // Two views: dynamic overlaid histograms (Observable Plot) and two synced
 // orthographic globes (ajglobe), cells colored by aspect ratio.
 import { Orb, lnglatToQuat, quatToLngLat } from './vendor/ajglobe.min.js';
+import { DNC_GREY, viridis, lut, fetchBin, sortedFinite, quantileT } from './_shared.js';
 
 const fmt = (x, d = 4) => (x == null ? '—' : x.toFixed(d));
 const $ = (sel) => document.querySelector(sel);
@@ -11,7 +12,7 @@ let M;        // manifest
 let HIST;     // histograms.json {edges, nbins, amax, data}
 const state = {
   series: new Map(),   // key "sys|res" -> {sys, res} (insertion order = draw order)
-  bins: 96,
+  bins: 0,             // set from the slider's HTML value in initHistControls
   yMode: 'density',
   yScale: 'linear',
 };
@@ -39,7 +40,7 @@ function buildSeriesPicker() {
     block.className = 'sys-block';
     const name = document.createElement('div');
     name.className = 'sys-name';
-    name.innerHTML = `<span class="swatch" style="background:${M.colors[sys]}"></span>${M.labels[sys].trim()}`;
+    name.innerHTML = `<span class="swatch" style="background:${M.colors[sys]}"></span>${M.labels[sys]}`;
     block.appendChild(name);
     const chips = document.createElement('div');
     chips.className = 'chips';
@@ -117,7 +118,7 @@ function seriesLineData(key, color) {
 }
 
 function seriesLabel(sys, res) {
-  return `${M.labels[sys].trim()}${res}`;
+  return `${M.labels[sys]} ${M.res_prefix[sys]}${res}`;
 }
 
 function renderHist() {
@@ -191,7 +192,13 @@ function renderStats(colors) {
 function initHistControls() {
   const slider = $('#binSlider'), binVal = $('#binVal');
   const sync = () => { binVal.textContent = state.bins; };
-  slider.addEventListener('input', () => { state.bins = +slider.value; sync(); renderHist(); });
+  // Coalesce drag events to one re-render per frame — each render rebuilds the
+  // whole plot SVG.
+  let raf = 0;
+  slider.addEventListener('input', () => {
+    state.bins = +slider.value; sync();
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderHist(); });
+  });
   state.bins = +slider.value; sync();
 
   for (const [grp, prop] of [['#yMode', 'yMode'], ['#yScale', 'yScale']]) {
@@ -210,20 +217,11 @@ function initHistControls() {
 // ================= Globe (ajglobe Orb, WebGL2) =================
 const globe = (() => {
   const gamma = 0.4;
-  const DNC_GREY = [68, 68, 68, 255];
-  // viridis via control stops — no per-cell color-string parsing.
-  const STOPS = [[68, 1, 84], [71, 44, 122], [59, 81, 139], [44, 113, 142],
-                 [33, 144, 141], [39, 173, 129], [92, 200, 99], [253, 231, 37]];
-  function viridis(t) {
-    t = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
-    const i = Math.min(STOPS.length - 2, t | 0), f = t - i, a = STOPS[i], b = STOPS[i + 1];
-    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, 255];
-  }
   const css = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
 
   const cache = new Map();           // key -> Promise<[pos, starts, ar, ids]>
   let domainMode = 'adaptive';       // default: each globe scaled to its own AR range
-  const panels = {};                 // id -> {orb, layer, label, ar, ids, arSorted, arMax, epoch}
+  const panels = {};                 // id -> {orb, layer, label, ar, ids, qt, arMax, epoch}
   let spinning = false, spinReq = null, lastT = 0;
 
   // Two coloring modes:
@@ -238,14 +236,12 @@ const globe = (() => {
       return (i) => {
         const a = p.ar[i];
         if (!Number.isFinite(a)) return DNC_GREY;
-        return viridis(Math.pow((Math.min(a, hi) - 1) / (hi - 1), gamma));
+        return lut(Math.pow((Math.min(a, hi) - 1) / (hi - 1), gamma));
       };
     }
     return (i) => {
-      const a = p.ar[i];
-      if (!Number.isFinite(a)) return DNC_GREY;
-      const s = p.arSorted;
-      return viridis(s.length > 1 ? Math.min(1, d3.bisect(s, a) / (s.length - 1)) : 0.5);
+      const t = p.qt[i];
+      return Number.isNaN(t) ? DNC_GREY : lut(t);
     };
   }
 
@@ -253,7 +249,7 @@ const globe = (() => {
     const card = $(`#card-${id}`);
     const sysSel = document.createElement('select');
     const resSel = document.createElement('select');
-    for (const s of M.systems) sysSel.add(new Option(M.labels[s].trim(), s));
+    for (const s of M.systems) sysSel.add(new Option(M.labels[s], s));
     sysSel.value = defaultSys;
     const head = document.createElement('div');
     head.className = 'globe-head';
@@ -272,7 +268,7 @@ const globe = (() => {
 
     const orb = new Orb(canvas, { background: '#0b0e13', sphere: '#11151c' });
     orb.lookAt(0, 20);
-    orb.borders({ color: '#0b0e13', width: 1 });   // context outlines over the cells (CDN)
+    orb.borders({ color: '#0b0e13', width: 1 });   // Natural Earth outlines (fetched from a CDN at runtime)
     panels[id] = { orb, label, layer: null, epoch: 0 };
 
     // Hover: GPU pick -> highlight tint + the shared tooltip, tracked to the cursor.
@@ -292,7 +288,9 @@ const globe = (() => {
 
     const fillRes = () => {
       resSel.innerHTML = '';
-      for (const r of M.globe_res[sysSel.value]) resSel.add(new Option(`r${r}`, r));
+      for (const r of M.globe_res[sysSel.value]) {
+        resSel.add(new Option(`${M.res_prefix[sysSel.value]}${r}`, r));
+      }
     };
     const reload = () => loadPanel(id, sysSel.value, +resSel.value);
     sysSel.addEventListener('change', () => { fillRes(); reload(); });
@@ -303,19 +301,13 @@ const globe = (() => {
     loadPanel(id, defaultSys, defaultRes);
   }
 
-  async function fetchBin(name, Ctor) {
-    const r = await fetch(`out/globe/${name}`);
-    if (!r.ok) throw new Error(`${name} ${r.status}`);
-    return new Ctor(await r.arrayBuffer());
-  }
-
   async function loadPanel(id, sys, res) {
     const key = `${sys}_r${res}`;
     if (!cache.has(key)) {
       cache.set(key, Promise.all([
-        fetchBin(`${key}_pos.f32`, Float32Array),
-        fetchBin(`${key}_idx.u32`, Uint32Array),
-        fetchBin(`${key}_ar.f32`, Float32Array),
+        fetchBin(`out/globe/${key}_pos.f32`, Float32Array),
+        fetchBin(`out/globe/${key}_idx.u32`, Uint32Array),
+        fetchBin(`out/globe/${key}_ar.f32`, Float32Array),
         fetch(`out/globe/${key}_ids.json`).then((r) => r.json()),
       ]));
     }
@@ -323,10 +315,11 @@ const globe = (() => {
     const e = ++p.epoch;                 // ignore a stale load after a quick re-select
     const [pos, starts, ar, ids] = await cache.get(key);
     if (e !== p.epoch) return;
+    const sorted = sortedFinite(ar);
     p.ar = ar;
     p.ids = ids;
-    p.arSorted = Float64Array.from(ar).filter(Number.isFinite).sort();
-    p.arMax = p.arSorted.length ? p.arSorted[p.arSorted.length - 1] : M.globe_ar_max;
+    p.qt = quantileT(ar, sorted);
+    p.arMax = sorted.length ? sorted[sorted.length - 1] : M.globe_ar_max;
     p.label.textContent = `${ids.length.toLocaleString()} cells · max AR ${fmt(p.arMax, 3)}`;
     if (p.layer) p.layer.remove();
     p.layer = p.orb.polygons({ lnglat: pos, starts, fill: fillFn(p) });
@@ -402,7 +395,7 @@ async function main() {
     fetch('out/histograms.json').then((r) => r.json()),
   ]);
   $('#subtitle').textContent =
-    `${M.systems.length} systems · skar gap_tol 1e-6 · AR over 1.0`;
+    `${M.systems.length} systems · skar gap_tol ${M.gap_tol.toExponential()} · AR over 1.0`;
   buildSeriesPicker();
   initHistControls();
   // Open on the cross-system comparison at each system's working resolution.
