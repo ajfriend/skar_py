@@ -13,7 +13,7 @@ commit that carries the full detail.
   `DidNotConverge` gain a `.method` field recording the concrete path that
   produced the outcome. Degenerate (rank-deficient) input is now rejected as
   coplanar in preprocessing on every path, even with the near-coplanarity
-  check disabled.
+  check disabled. (#16)
 
 - Bump `skar_zig` to **v0.5.0** and adapt the C shim to its per-algorithm
   `diag` union (`outer_iters` now flows through `Diagnostics.totalIters()`).

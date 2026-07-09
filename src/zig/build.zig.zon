@@ -1,6 +1,6 @@
 .{
     .name = .skar_py,
-    .version = "0.5.0",
+    .version = "0.6.0",
     .fingerprint = 0x26bd05582dbe2aa6,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
