@@ -5,6 +5,13 @@ commit that carries the full detail.
 
 ## [Unreleased]
 
+- Expose skar_zig's solver-path selection: `skar.solve(..., method=)` takes
+  `'alternating'` / `'trust'` / `'auto'` and **defaults to `'auto'`**
+  (alternating first, trust-region fallback — converges on the wide-angle and
+  elongated inputs the alternating path structurally cannot). `Converged` /
+  `DidNotConverge` gain a `.method` field recording which path produced the
+  outcome.
+
 - Bump `skar_zig` to **v0.5.0** and adapt the C shim to its per-algorithm
   `diag` union (`outer_iters` now flows through `Diagnostics.totalIters()`).
   Solver behavior and the Python API are unchanged; upstream's experimental

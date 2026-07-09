@@ -2,10 +2,15 @@
 the typed `Outcome`.
 """
 
+from typing import Literal
+
 from . import _cy  # Cython extension
 from . import outcomes
 from .convert import Geo, to_vec3
 from .outcomes import Outcome
+
+Method = Literal['alternating', 'trust', 'auto']
+_METHOD_CODE = {'alternating': 0, 'trust': 1, 'auto': 2}
 
 
 def solve(
@@ -16,6 +21,7 @@ def solve(
     n_hull: int = 10,
     coplanarity_tol: float = 1e-12,
     max_outer: int = 100,
+    method: Method = 'auto',
 ) -> Outcome:
     """Find the tightest ellipsoidal cone enclosing a point set on the
     unit sphere.
@@ -37,6 +43,14 @@ def solve(
             great circle) as `ValueError`. Pass `<= 0` to bypass.
         max_outer: outer-iteration cap before returning a
             `'did_not_converge'` result.
+        method: solver path. `'alternating'` is the original solver —
+            very fast on compact inputs (DGGS cells) but it can fail to
+            converge on dense inputs spanning wide angles from the
+            optimal axis. `'trust'` is a trust-region descent that also
+            handles those wide/elongated inputs. `'auto'` (the default)
+            runs `'alternating'` and retries with `'trust'` if it did
+            not converge, returning the better outcome; the outcome's
+            `.method` records which path produced it.
 
     Returns:
         One of `Converged`, `Infeasible`, or `DidNotConverge`
@@ -55,12 +69,17 @@ def solve(
                     retry(r.gap, r.outer_iters)
 
     Raises:
-        ValueError: invalid `geo`, mismatched shape, fewer than 3
-            points, non-finite/negative tolerance, or near-coplanar
-            input.
+        ValueError: invalid `geo` or `method`, mismatched shape, fewer
+            than 3 points, non-finite/negative tolerance, or
+            near-coplanar input.
     """
+    if method not in _METHOD_CODE:
+        raise ValueError(
+            f"skar: method must be 'alternating', 'trust', or 'auto'; got {method!r}"
+        )
     X = to_vec3(points, geo=geo)
     raw = _cy.solve(
-        X, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
+        X, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer),
+        _METHOD_CODE[method],
     )
     return outcomes.build(*raw)

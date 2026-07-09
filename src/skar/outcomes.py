@@ -42,13 +42,19 @@ class Converged:
             ``Q @ np.diag(sigma) @ Q.T``.
         gap: certified duality gap (``<=`` the ``gap_tol`` passed to
             ``solve``).
-        outer_iters: outer iterations the solver ran.
+        outer_iters: total solver iterations for the path that produced
+            this outcome (outer iterations on ``'alternating'``; trust
+            iterations + re-certification attempts on ``'trust'``).
+        method: which solver path produced this outcome —
+            ``'alternating'`` or ``'trust'``. Under ``method='auto'``
+            this records whether the trust fallback was needed.
     """
 
     sigma: np.ndarray
     Q: np.ndarray
     gap: float
     outer_iters: int
+    method: Literal['alternating', 'trust']
     status: ClassVar[Literal['converged']] = 'converged'
     converged: ClassVar[bool] = True
 
@@ -88,13 +94,17 @@ class DidNotConverge:
             uncertified.
         gap: last computed duality gap — *not* certified to be below
             ``gap_tol``; inspect alongside ``outer_iters``.
-        outer_iters: outer iterations run (``== max_outer``).
+        outer_iters: total iterations run by the path that produced this
+            outcome (see `Converged.outer_iters`).
+        method: which solver path produced this outcome —
+            ``'alternating'`` or ``'trust'`` (see `Converged.method`).
     """
 
     sigma: np.ndarray
     Q: np.ndarray
     gap: float
     outer_iters: int
+    method: Literal['alternating', 'trust']
     status: ClassVar[Literal['did_not_converge']] = 'did_not_converge'
     converged: ClassVar[bool] = False
 
@@ -105,7 +115,7 @@ class DidNotConverge:
 Outcome = Converged | Infeasible | DidNotConverge
 
 
-def build(status, sigma, q, gap, outer_iters, residual) -> Outcome:
+def build(status, sigma, q, gap, outer_iters, residual, method) -> Outcome:
     """Assemble the typed `Outcome` from the raw `_cy.solve` tuple."""
     if status == 'infeasible':
         return Infeasible(residual=residual)
@@ -116,4 +126,5 @@ def build(status, sigma, q, gap, outer_iters, residual) -> Outcome:
         Q=np.asarray(q, dtype=float).reshape(3, 3),  # row-major Q[r, c]
         gap=gap,
         outer_iters=outer_iters,
+        method=method,
     )

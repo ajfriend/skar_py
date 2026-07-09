@@ -137,6 +137,15 @@ axis), so the enclosing ellipsoid matrix is
 has no `aspect_ratio`. See the docstrings in `src/skar/__init__.py` for
 the full field reference.
 
+## Solver paths
+
+`solve` picks its solver via `method=`: `'alternating'` (the original
+solver — very fast on compact inputs like DGGS cells, but it can fail
+to converge on dense inputs spanning wide angles), `'trust'` (a
+trust-region descent that also handles those wide/elongated inputs),
+or `'auto'` (the default: alternating first, trust as fallback). The
+outcome's `.method` records which path produced it.
+
 ## Layout
 
 ```

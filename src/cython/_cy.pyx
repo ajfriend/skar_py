@@ -9,17 +9,19 @@ cdef extern from *:
     """
     int skar_solve(const double *pts, size_t n,
                    double gap_tol, int n_hull, double coplanarity_tol,
-                   unsigned int max_outer,
+                   unsigned int max_outer, int method,
                    int *out_status,
                    double *out_sigma, double *out_q, double *out_gap,
-                   unsigned int *out_outer_iters, double *out_residual);
+                   unsigned int *out_outer_iters, double *out_residual,
+                   int *out_method);
     """
     int skar_solve(const double *pts, size_t n,
                    double gap_tol, int n_hull, double coplanarity_tol,
-                   unsigned int max_outer,
+                   unsigned int max_outer, int method,
                    int *out_status,
                    double *out_sigma, double *out_q, double *out_gap,
-                   unsigned int *out_outer_iters, double *out_residual)
+                   unsigned int *out_outer_iters, double *out_residual,
+                   int *out_method)
 
 
 # Status strings indexed by the SKAR_STATUS_* code that c_api.zig
@@ -27,9 +29,14 @@ cdef extern from *:
 # integer codes never leak into the Python wrapper.
 _STATUS = ('converged', 'infeasible', 'did_not_converge')
 
+# Solver-path strings indexed by the SKAR_METHOD_* code; also the
+# in-param encoding ('auto' = index 2 is input-only — out_method always
+# reports a concrete path, or -1 (None) for infeasible).
+_METHOD = ('alternating', 'trust', 'auto')
+
 
 def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
-          double coplanarity_tol, unsigned int max_outer):
+          double coplanarity_tol, unsigned int max_outer, int method):
     if pts.shape[1] != 3:
         raise ValueError('pts must be a 2-D array of shape (N, 3)')
 
@@ -38,9 +45,11 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
     cdef double sigma[3]
     cdef double q[9]
     cdef unsigned int outer_iters
+    cdef int out_method
     cdef int err = skar_solve(
         &pts[0, 0], pts.shape[0], gap_tol, n_hull, coplanarity_tol, max_outer,
-        &status, &sigma[0], &q[0], &gap, &outer_iters, &residual,
+        method,
+        &status, &sigma[0], &q[0], &gap, &outer_iters, &residual, &out_method,
     )
 
     if err == 1:
@@ -59,6 +68,8 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
             'skar: internal solver error (a PSD/duality invariant was '
             'violated beyond float noise) — please report it'
         )
+    if err == 6:
+        raise ValueError("skar: method must be 'alternating', 'trust', or 'auto'")
     if err != 0:
         raise RuntimeError(f'skar: unknown error code {err}')
 
@@ -69,4 +80,5 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
         gap,
         outer_iters,
         residual,
+        None if out_method < 0 else _METHOD[out_method],
     )

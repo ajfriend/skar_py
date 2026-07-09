@@ -197,12 +197,15 @@ def test_did_not_converge_exposes_uncertified_diagnostics():
         [80.0,  40.0],
         [85.0,   0.0],
     ])
-    r = skar.solve(pts, gap_tol=1e-300, max_outer=5)
+    # Pinned to the alternating path, whose contract is outer_iters ==
+    # max_outer on DNC (the trust path's iteration count is its own).
+    r = skar.solve(pts, gap_tol=1e-300, max_outer=5, method='alternating')
     assert isinstance(r, skar.DidNotConverge)
     assert r.status == 'did_not_converge'
     assert r.converged is False
     assert r.Q.shape == (3, 3) and r.sigma.shape == (3,)
     assert r.outer_iters == 5
+    assert r.method == 'alternating'
     # Uncertified: the aspect_ratio accessor is deliberately withheld.
     assert not hasattr(r, 'aspect_ratio')
 
@@ -418,11 +421,52 @@ def test_coplanar_input_rejected():
 
 def test_coplanar_check_can_be_bypassed():
     # Same near-collinear scatter, but bypass the check — the solver may
-    # converge or not, but it must not raise CoplanarInput.
-    r = skar.solve(COPLANAR_ARC_DEG, coplanarity_tol=0.0)
+    # converge or not, but it must not raise CoplanarInput. Pinned to the
+    # alternating path: it degrades to did_not_converge on this degenerate
+    # input, where the trust path trips a solver invariant (next test).
+    r = skar.solve(COPLANAR_ARC_DEG, coplanarity_tol=0.0, method='alternating')
     assert r.status in {'converged', 'infeasible', 'did_not_converge'}
+
+
+def test_coplanar_bypass_on_trust_path_raises_internal():
+    # KNOWN upstream behavior (skar_zig v0.5.0): on coplanarity-bypassed
+    # degenerate input the trust path trips a PSD/duality invariant, and
+    # .auto propagates that error instead of keeping the alternating DNC
+    # outcome it already had. If an upstream fix makes these return an
+    # Outcome again, this test will fail — delete it then and unpin
+    # test_coplanar_check_can_be_bypassed.
+    for method in ('trust', 'auto'):
+        with pytest.raises(RuntimeError, match='internal solver error'):
+            skar.solve(COPLANAR_ARC_DEG, coplanarity_tol=0.0, method=method)
 
 
 def test_invalid_tolerance():
     with pytest.raises(ValueError, match='tolerance'):
         skar.solve(OCTANT_XYZ, geo='vec3', gap_tol=float('nan'))
+
+
+# ---- solver-path selection (method=) --------------------------------------
+
+def test_method_auto_matches_alternating_on_easy_input():
+    # On well-behaved input the auto path never needs the fallback: the
+    # outcome is produced by (and identical to) the alternating path.
+    a = skar.solve(OCTANT_XYZ, geo='vec3', method='alternating')
+    auto = skar.solve(OCTANT_XYZ, geo='vec3')   # default method='auto'
+    assert auto.method == 'alternating'
+    assert auto.sigma == pytest.approx(a.sigma)
+    assert auto.gap == a.gap
+    assert auto.outer_iters == a.outer_iters
+
+
+def test_method_trust_converges_and_reports_path():
+    r = skar.solve(OCTANT_XYZ, geo='vec3', method='trust')
+    assert r.status == 'converged'
+    assert r.method == 'trust'
+    # Same cone as the alternating path, to certification tolerance.
+    a = skar.solve(OCTANT_XYZ, geo='vec3', method='alternating')
+    assert r.aspect_ratio == pytest.approx(a.aspect_ratio, abs=1e-6)
+
+
+def test_method_invalid_rejected():
+    with pytest.raises(ValueError, match='method'):
+        skar.solve(OCTANT_XYZ, geo='vec3', method='newton')

@@ -21,12 +21,29 @@ pub const SKAR_INVALID_TOLERANCE: c_int = 2;
 pub const SKAR_COPLANAR_INPUT: c_int = 3;
 pub const SKAR_OUT_OF_MEMORY: c_int = 4;
 pub const SKAR_INTERNAL: c_int = 5;
+pub const SKAR_INVALID_METHOD: c_int = 6;
+
+// `method` in-param values, mapping onto `skar.Method`. Under
+// SKAR_METHOD_AUTO the solver runs alternating first and falls back to
+// trust; `out_method` reports which path actually produced the outcome.
+pub const SKAR_METHOD_ALTERNATING: c_int = 0;
+pub const SKAR_METHOD_TRUST: c_int = 1;
+pub const SKAR_METHOD_AUTO: c_int = 2;
 
 // Values written to `out_status` on SKAR_OK — which Outcome variant
 // the solver produced.
 pub const SKAR_STATUS_CONVERGED: c_int = 0;
 pub const SKAR_STATUS_INFEASIBLE: c_int = 1;
 pub const SKAR_STATUS_DID_NOT_CONVERGE: c_int = 2;
+
+/// The `out_method` value for a diagnostics union: which solver path
+/// produced the outcome (the union tag).
+fn pathTag(diag: skar.Diagnostics) c_int {
+    return switch (diag) {
+        .alternating => SKAR_METHOD_ALTERNATING,
+        .trust => SKAR_METHOD_TRUST,
+    };
+}
 
 /// C ABI: solve the spherical aspect-ratio problem for a point set.
 ///
@@ -43,9 +60,12 @@ pub const SKAR_STATUS_DID_NOT_CONVERGE: c_int = 2;
 /// Outputs not meaningful for the variant are left as NaN / 0. The
 /// cone axis is column 0 of `q` (q[0], q[3], q[6]) and the aspect ratio
 /// is sigma[2]/sigma[1], so neither is returned separately.
-/// `out_outer_iters` is `Diagnostics.totalIters()` upstream — with the
-/// default `.alternating` method (the only path this shim requests),
-/// that is exactly the outer-iteration count.
+/// `out_outer_iters` is `Diagnostics.totalIters()` upstream — the
+/// outer-iteration count on the alternating path, trust iterations +
+/// re-certification attempts on the trust path. `out_method` reports
+/// which path produced the outcome (SKAR_METHOD_ALTERNATING/TRUST;
+/// meaningful under SKAR_METHOD_AUTO, -1 for infeasible where no path
+/// tag exists).
 pub export fn skar_solve(
     pts_buf: [*]const f64,
     n: usize,
@@ -53,12 +73,14 @@ pub export fn skar_solve(
     n_hull: c_int,
     coplanarity_tol: f64,
     max_outer: c_uint,
+    method: c_int,
     out_status: *c_int,
     out_sigma: *[3]f64,
     out_q: *[9]f64,
     out_gap: *f64,
     out_outer_iters: *c_uint,
     out_residual: *f64,
+    out_method: *c_int,
 ) c_int {
     const X: []const [3]f64 = @as([*]const [3]f64, @ptrCast(pts_buf))[0..n];
 
@@ -67,6 +89,12 @@ pub export fn skar_solve(
         .n_hull = @intCast(n_hull),
         .coplanarity_tol = coplanarity_tol,
         .max_outer = @intCast(max_outer),
+        .method = switch (method) {
+            SKAR_METHOD_ALTERNATING => .alternating,
+            SKAR_METHOD_TRUST => .trust,
+            SKAR_METHOD_AUTO => .auto,
+            else => return SKAR_INVALID_METHOD,
+        },
     };
 
     const nan = std.math.nan(f64);
@@ -77,6 +105,7 @@ pub export fn skar_solve(
     out_gap.* = nan;
     out_outer_iters.* = 0;
     out_residual.* = nan;
+    out_method.* = -1;
 
     var outcome = skar.solve(std.heap.c_allocator, X, opts) catch |err| switch (err) {
         error.InsufficientPoints => return SKAR_INSUFFICIENT_POINTS,
@@ -96,6 +125,7 @@ pub export fn skar_solve(
             out_q.* = c.Q.m;
             out_gap.* = c.gap;
             out_outer_iters.* = c.diag.totalIters();
+            out_method.* = pathTag(c.diag);
         },
         .infeasible => |inf| {
             out_status.* = SKAR_STATUS_INFEASIBLE;
@@ -107,6 +137,7 @@ pub export fn skar_solve(
             out_q.* = d.Q.m;
             out_gap.* = d.gap;
             out_outer_iters.* = d.diag.totalIters();
+            out_method.* = pathTag(d.diag);
         },
     }
     return SKAR_OK;
