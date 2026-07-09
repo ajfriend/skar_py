@@ -94,7 +94,6 @@ code to the matching Python exception.
 │       ├── build.zig.zon   — pins the skar_zig dependency
 │       └── c_api.zig       — pub export fn skar_solve
 ├── scripts/                — examples (own dep groups; not part of the wheel)
-│   ├── dggs/               — H3/S2/A5 aspect-ratio survey (`just dggs`)
 │   ├── states/             — US-state aspect ratios (`just states`)
 │   └── countries/          — country aspect ratios (`just countries`)
 └── tests/
@@ -210,7 +209,13 @@ Once the `pypi` Trusted-Publisher OIDC environment is configured on the
 GitHub repo (no API tokens involved):
 
 1. **Pin a released `skar_zig`** (see above) and commit it.
-2. **Bump the version** in `pyproject.toml` (`project.version`). Commit
+2. **Run the DGGS regression gate**: in the sibling
+   [dggs_compare](https://github.com/ajfriend/dggs_compare) repo, point its
+   `[tool.uv.sources]` skar pin at the candidate (a branch/rev works),
+   `uv sync`, then `just dnc-check` (and eyeball `just survey`). It solves
+   ~5.7M real DGGS cells and has caught real solver-behavior differences
+   (see skar_py PRs #15/#16).
+3. **Bump the version** in `pyproject.toml` (`project.version`). Commit
    + push to `main`. Wait for `test` and `wheels` to go green.
 3. **Create a tag + release** on GitHub: Draft a new release → choose
    tag `vX.Y.Z` ("Create new tag on publish") → target `main` →

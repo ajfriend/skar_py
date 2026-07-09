@@ -1,6 +1,5 @@
 # Python
 .venv/
-.venv-dggs/   # x86_64 (Rosetta) env for the DGGS scripts — see justfile
 __pycache__/
 *.pyc
 *.pyo

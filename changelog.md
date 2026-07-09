@@ -5,6 +5,13 @@ commit that carries the full detail.
 
 ## [Unreleased]
 
+- Move the DGGS investigation (the Parquet cell-cache pipeline, survey,
+  calibration, DNC checks, web viewer, and live-engine explorations) to its
+  own repo, [dggs_compare](https://github.com/ajfriend/dggs_compare), which
+  consumes skar as a pinned release and doubles as skar's pre-release
+  regression gate (see dev.md's release runbook). skar_py keeps the small
+  states/countries examples.
+
 - Bump `skar_zig` to **v0.6.0** and expose its solver-path selection:
   `skar.solve(..., method=)` takes `'alternating'` / `'trust'` / `'auto'` and
   **defaults to `'auto'`** — upstream's alias for the recommended method,
