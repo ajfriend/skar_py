@@ -43,6 +43,9 @@ pub const SKAR_STATUS_DID_NOT_CONVERGE: c_int = 2;
 /// Outputs not meaningful for the variant are left as NaN / 0. The
 /// cone axis is column 0 of `q` (q[0], q[3], q[6]) and the aspect ratio
 /// is sigma[2]/sigma[1], so neither is returned separately.
+/// `out_outer_iters` is `Diagnostics.totalIters()` upstream — with the
+/// default `.alternating` method (the only path this shim requests),
+/// that is exactly the outer-iteration count.
 pub export fn skar_solve(
     pts_buf: [*]const f64,
     n: usize,
@@ -92,7 +95,7 @@ pub export fn skar_solve(
             out_sigma.* = c.sigma;
             out_q.* = c.Q.m;
             out_gap.* = c.gap;
-            out_outer_iters.* = c.outer_iters;
+            out_outer_iters.* = c.diag.totalIters();
         },
         .infeasible => |inf| {
             out_status.* = SKAR_STATUS_INFEASIBLE;
@@ -103,7 +106,7 @@ pub export fn skar_solve(
             out_sigma.* = d.sigma;
             out_q.* = d.Q.m;
             out_gap.* = d.gap;
-            out_outer_iters.* = d.outer_iters;
+            out_outer_iters.* = d.diag.totalIters();
         },
     }
     return SKAR_OK;

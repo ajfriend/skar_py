@@ -5,6 +5,10 @@ commit that carries the full detail.
 
 ## [Unreleased]
 
+- Bump `skar_zig` to **v0.5.0** and adapt the C shim to its per-algorithm
+  `diag` union (`outer_iters` now flows through `Diagnostics.totalIters()`).
+  Solver behavior and the Python API are unchanged; upstream's experimental
+  `.trust`/`.auto` solver paths are not yet exposed.
 - DGGS scripts: add **IVEA7H** and refactor the DGGAL wiring to a single
   registry (`dggal_common.DGGAL_SYSTEMS` + `Adapter.iter_sample`) — a new DGGAL
   grid is now one row that calibrate/survey/dnc_sweep/validate_corners all loop
