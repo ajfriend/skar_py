@@ -2,10 +2,15 @@
 the typed `Outcome`.
 """
 
+from typing import Literal
+
 from . import _cy  # Cython extension
 from . import outcomes
 from .convert import Geo, to_vec3
 from .outcomes import Outcome
+
+Method = Literal['alternating', 'trust', 'auto']
+_METHOD_CODE = {'alternating': 0, 'trust': 1, 'auto': 2}
 
 
 def solve(
@@ -16,6 +21,7 @@ def solve(
     n_hull: int = 10,
     coplanarity_tol: float = 1e-12,
     max_outer: int = 100,
+    method: Method = 'auto',
 ) -> Outcome:
     """Find the tightest ellipsoidal cone enclosing a point set on the
     unit sphere.
@@ -37,6 +43,19 @@ def solve(
             great circle) as `ValueError`. Pass `<= 0` to bypass.
         max_outer: outer-iteration cap before returning a
             `'did_not_converge'` result.
+        method: solver path. `'auto'` (the default) resolves to the
+            library's recommended method for the pinned skar_zig
+            version — currently `'trust'`, a trust-region descent that
+            converges on every input family constructed to date,
+            including the wide-angle/elongated inputs the original
+            solver structurally cannot. `'alternating'` is that
+            original solver, kept for continuity (bit-stable with
+            pre-0.6.0 defaults) and for large dense near-circular
+            inputs where it can still be faster. The outcome's
+            `.method` records the concrete path that ran. Near the f64
+            gap floor (finest-resolution cells), WHICH cells certify at
+            a strict `gap_tol` differs between paths at noise level;
+            aspect ratios agree wherever both certify.
 
     Returns:
         One of `Converged`, `Infeasible`, or `DidNotConverge`
@@ -55,12 +74,17 @@ def solve(
                     retry(r.gap, r.outer_iters)
 
     Raises:
-        ValueError: invalid `geo`, mismatched shape, fewer than 3
-            points, non-finite/negative tolerance, or near-coplanar
-            input.
+        ValueError: invalid `geo` or `method`, mismatched shape, fewer
+            than 3 points, non-finite/negative tolerance, or
+            near-coplanar input.
     """
+    if method not in _METHOD_CODE:
+        raise ValueError(
+            f"skar: method must be 'alternating', 'trust', or 'auto'; got {method!r}"
+        )
     X = to_vec3(points, geo=geo)
     raw = _cy.solve(
-        X, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer)
+        X, float(gap_tol), int(n_hull), float(coplanarity_tol), int(max_outer),
+        _METHOD_CODE[method],
     )
     return outcomes.build(*raw)

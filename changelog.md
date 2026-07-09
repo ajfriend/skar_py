@@ -5,6 +5,16 @@ commit that carries the full detail.
 
 ## [Unreleased]
 
+- Bump `skar_zig` to **v0.6.0** and expose its solver-path selection:
+  `skar.solve(..., method=)` takes `'alternating'` / `'trust'` / `'auto'` and
+  **defaults to `'auto'`** — upstream's alias for the recommended method,
+  currently the trust-region path, which converges on the wide-angle and
+  elongated inputs the alternating path structurally cannot. `Converged` /
+  `DidNotConverge` gain a `.method` field recording the concrete path that
+  produced the outcome. Degenerate (rank-deficient) input is now rejected as
+  coplanar in preprocessing on every path, even with the near-coplanarity
+  check disabled.
+
 - Bump `skar_zig` to **v0.5.0** and adapt the C shim to its per-algorithm
   `diag` union (`outer_iters` now flows through `Diagnostics.totalIters()`).
   Solver behavior and the Python API are unchanged; upstream's experimental

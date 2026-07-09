@@ -137,6 +137,16 @@ axis), so the enclosing ellipsoid matrix is
 has no `aspect_ratio`. See the docstrings in `src/skar/__init__.py` for
 the full field reference.
 
+## Solver paths
+
+`solve` picks its solver via `method=`: `'auto'` (the default) resolves
+to the library's recommended method — currently `'trust'`, a
+trust-region descent that converges on every input family constructed
+to date, including the wide/elongated inputs the original solver
+structurally cannot. `'alternating'` is that original solver, kept for
+continuity and for large dense near-circular inputs where it can still
+be faster. The outcome's `.method` records the concrete path that ran.
+
 ## Layout
 
 ```

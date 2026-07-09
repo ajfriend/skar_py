@@ -197,12 +197,15 @@ def test_did_not_converge_exposes_uncertified_diagnostics():
         [80.0,  40.0],
         [85.0,   0.0],
     ])
-    r = skar.solve(pts, gap_tol=1e-300, max_outer=5)
+    # Pinned to the alternating path, whose contract is outer_iters ==
+    # max_outer on DNC (the trust path's iteration count is its own).
+    r = skar.solve(pts, gap_tol=1e-300, max_outer=5, method='alternating')
     assert isinstance(r, skar.DidNotConverge)
     assert r.status == 'did_not_converge'
     assert r.converged is False
     assert r.Q.shape == (3, 3) and r.sigma.shape == (3,)
     assert r.outer_iters == 5
+    assert r.method == 'alternating'
     # Uncertified: the aspect_ratio accessor is deliberately withheld.
     assert not hasattr(r, 'aspect_ratio')
 
@@ -416,13 +419,60 @@ def test_coplanar_input_rejected():
         skar.solve(COPLANAR_ARC_DEG)
 
 
-def test_coplanar_check_can_be_bypassed():
-    # Same near-collinear scatter, but bypass the check — the solver may
-    # converge or not, but it must not raise CoplanarInput.
-    r = skar.solve(COPLANAR_ARC_DEG, coplanarity_tol=0.0)
+# The same arc with one vertex nudged off the great circle: near-coplanar
+# (the default check rejects it) but not rank-deficient (the always-on
+# exactness rejection lets it through once the check is bypassed).
+NEAR_COPLANAR_ARC_DEG = COPLANAR_ARC_DEG + np.array(
+    [[0.0, 0.0], [1e-6, 0.0], [0.0, 0.0], [0.0, 0.0]])
+
+
+def test_exactly_coplanar_rejected_on_every_path_even_bypassed():
+    # Rank-deficiency is an input property, decided once in preprocessing:
+    # bypassing the near-coplanar check does NOT let exactly-degenerate
+    # input through to any solver path (skar_zig >= 0.6.0).
+    for method in ('alternating', 'trust', 'auto'):
+        with pytest.raises(ValueError, match='coplanar'):
+            skar.solve(COPLANAR_ARC_DEG, coplanarity_tol=0.0, method=method)
+
+
+def test_near_coplanar_check_can_be_bypassed():
+    # Near-coplanar input: rejected by the default check, but with the
+    # check bypassed it reaches the solver and yields a typed Outcome
+    # (never an internal error), whatever the certification result.
+    with pytest.raises(ValueError, match='coplanar'):
+        skar.solve(NEAR_COPLANAR_ARC_DEG)
+    r = skar.solve(NEAR_COPLANAR_ARC_DEG, coplanarity_tol=0.0)
     assert r.status in {'converged', 'infeasible', 'did_not_converge'}
 
 
 def test_invalid_tolerance():
     with pytest.raises(ValueError, match='tolerance'):
         skar.solve(OCTANT_XYZ, geo='vec3', gap_tol=float('nan'))
+
+
+# ---- solver-path selection (method=) --------------------------------------
+
+def test_method_auto_is_the_recommended_path():
+    # 'auto' is upstream's alias for the recommended method — currently
+    # the trust path (skar_zig >= 0.6.0). Identical outcome to asking
+    # for 'trust' explicitly.
+    t = skar.solve(OCTANT_XYZ, geo='vec3', method='trust')
+    auto = skar.solve(OCTANT_XYZ, geo='vec3')   # default method='auto'
+    assert auto.method == 'trust'
+    assert auto.sigma == pytest.approx(t.sigma)
+    assert auto.gap == t.gap
+    assert auto.outer_iters == t.outer_iters
+
+
+def test_method_trust_converges_and_reports_path():
+    r = skar.solve(OCTANT_XYZ, geo='vec3', method='trust')
+    assert r.status == 'converged'
+    assert r.method == 'trust'
+    # Same cone as the alternating path, to certification tolerance.
+    a = skar.solve(OCTANT_XYZ, geo='vec3', method='alternating')
+    assert r.aspect_ratio == pytest.approx(a.aspect_ratio, abs=1e-6)
+
+
+def test_method_invalid_rejected():
+    with pytest.raises(ValueError, match='method'):
+        skar.solve(OCTANT_XYZ, geo='vec3', method='newton')

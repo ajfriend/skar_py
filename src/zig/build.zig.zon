@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .skar = .{
-            .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.5.0.tar.gz",
-            .hash = "skar-0.5.0-dHjpXw1bCwDZk2OdkT8g9oL0mDKArWNQZB67oiP61Tar",
+            .url = "https://github.com/ajfriend/skar_zig/archive/refs/tags/v0.6.0.tar.gz",
+            .hash = "skar-0.6.0-dHjpX8X2CwD7QYHArmIUvxriIpw2XcU4Yrdd3QsptQ_w",
         },
     },
     .paths = .{
