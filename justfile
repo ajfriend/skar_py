@@ -95,6 +95,37 @@ calibrate:
 dnc-check: reinstall
     uv run --group cells scripts/dggs_cache/dnc_check.py
 
+# Build the static data for the DGGS aspect-ratio web viewer: solves every
+# cached cell with skar and emits out/histograms.json + out/globe/* (ajglobe's
+# flat binaries) + out/manifest.json under scripts/dggs_cache/web/ (gitignored).
+# Reads the cell sets (`just gen-cells` first); native, DGGS-library-free, no
+# Rosetta.
+web-data: reinstall
+    uv run --group cells scripts/dggs_cache/web/build_data.py
+
+# Serve the DGGS aspect-ratio web viewer at http://localhost:8000 (builds the
+# data first). Static page: dynamic histograms (any system/resolution) + two
+# synced orthographic globes (ajglobe) with cells colored by aspect ratio.
+web: web-data
+    uv run -m http.server 8000 -d scripts/dggs_cache/web
+
+# Refresh the vendored ajglobe bundle (checked in under web/vendor/) from the
+# sibling repo's dist (`just build` over there first if src changed).
+web-vendor:
+    cp ../ajglobe/dist/ajglobe.min.js scripts/dggs_cache/web/vendor/ajglobe.min.js
+
+# Full-globe experiment (globe_full.html): EVERY ivea7h cell at r1-r3 + the
+# r5/r6 torture tests (not the sampled cache). Two passes. (1) gen the complete
+# geometry to binary via DGGAL under Rosetta; (2) solve aspect ratios natively
+# with skar. ~minutes for r6 (1.18M cells); both passes skip levels already on
+# disk. Output -> scripts/dggs_cache/web/out/full/ (gitignored).
+web-full-geom:
+    uv run scripts/dggs_cache/web/gen_ivea7h_full_geom.py
+
+# Run `just web-full-geom` first (the slow Rosetta pass); this solves the AR.
+web-full: reinstall
+    uv run --group cells scripts/dggs_cache/web/build_ivea7h_full_ar.py
+
 # US-state aspect ratios: geopandas -> skar.solve -> plot. Writes
 # scripts/states/out/states.png.
 states: reinstall

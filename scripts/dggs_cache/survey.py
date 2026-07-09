@@ -1,5 +1,13 @@
 """DGGS aspect-ratio survey.
 
+Aspect ratio (AR) = major/minor semi-axis ratio (a/b, a>=b) of each cell's
+enclosing-cone ellipse — the discrete, per-cell analogue of Tissot's indicatrix.
+AR == 1 is isotropic (circular); AR > 1 is anisotropic ("squished"). For an
+equal-area DGGS the areal factor a*b is ~fixed by construction, so AR is where
+the unavoidable distortion shows up. (Contrast: polygon compactness / the
+isoperimetric quotient scores the cell *outline*, not this differential stretch
+— see ar_vs_pca.py for where the two diverge.)
+
 Reads the pre-generated Parquet cell sets (`just gen-cells` first; native, no
 DGGS library) and solves every cell with `skar` at the strict default
 gap_tol=1e-6. Writes:

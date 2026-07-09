@@ -5,6 +5,14 @@ Parquet once, then run every analysis **off those files** — natively, with no
 DGGS library and no x86_64/Rosetta env. (The live, can't-be-cached analyses —
 edge refinement, grid/neighbor explorations — live in `../dggs_old/`.)
 
+**Aspect ratio (AR)** throughout means the major/minor semi-axis ratio (a/b,
+a≥b) of a cell's enclosing-cone ellipse — the discrete per-cell analogue of
+Tissot's indicatrix. AR = 1 is isotropic (circular); AR > 1 is anisotropic
+("squished"). Since these grids are ~equal-area (areal factor a·b ~fixed), AR is
+where the unavoidable distortion surfaces. It is *not* polygon compactness (the
+isoperimetric quotient, which scores the cell outline) — `ar_vs_pca.py` shows
+where the two notions diverge.
+
 ## Layout
 
 ```
@@ -20,6 +28,8 @@ calibrate.py      match S2/A5/DGGAL resolutions to an H3 r9 cell by area
 dnc_check.py      DNC invariants: working resolutions clean + DNC only at the
                   finest, monotone (pass/fail, every system; -> out/dnc_check.png)
 explorations/     ar_histograms.py, ar_vs_pca.py (cache-reading)
+web/              interactive explorer: dynamic histograms (any system/res) +
+                  two synced ajglobe globes colored by AR (`just web`)
 ```
 
 ## Use
@@ -29,6 +39,7 @@ just gen-cells     # generate all the Parquet (run once; ~2 min, dggal under Ros
 just dggs          # survey -> out/histograms.png + extremes.png
 just calibrate     # area-match resolutions (pick -> bake into _common.TARGET_RES)
 just dnc-check     # assert the DNC invariants (clean working res, monotone)
+just web           # interactive explorer (histograms + globes) at :8000
 ```
 
 Each analysis is a plain `load_cells(dggs, res)` over the cache + `skar.solve`;
