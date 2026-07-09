@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ivea7h full globe — ajglobe</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0e13; overflow: hidden;
+    font: 13px ui-monospace, Menlo, monospace; color: #9aa7b4; }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #c:active { cursor: grabbing; }
+  #c:focus { outline: none; }
+  #hud { position: absolute; top: 14px; left: 16px; z-index: 10;
+    background: #0b0e13cc; border: 1px solid #2a323d; border-radius: 8px;
+    padding: 10px 13px; line-height: 1.6; }
+  #hud b { color: #e6edf3; }
+  .seg { display: inline-flex; border: 1px solid #2a323d; border-radius: 6px; overflow: hidden; margin-right: 8px; }
+  .seg button { background: #1c232d; color: #9aa7b4; border: none; padding: 4px 12px;
+    cursor: pointer; font: inherit; }
+  .seg button.on { background: #58a6ff; color: #06121f; }
+  #status { display: block; margin-top: 7px; }
+  #cell { display: block; margin-top: 4px; color: #7d8b99; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  ivea7h — every cell
+  <span class="seg" id="resSel" style="margin-left:8px">
+    <button data-r="1">r1</button><button data-r="2">r2</button><button data-r="3">r3</button><button data-r="5" class="on">r5</button><button data-r="6">r6</button>
+  </span>
+  <span id="status">loading…</span>
+  <span id="cell">hover a cell…</span>
+</div>
+
+<script type="module">
+'use strict';
+import { Orb } from './vendor/ajglobe.min.js';
+
+// viridis via control stops — no per-cell color-string parsing.
+const STOPS = [[68, 1, 84], [71, 44, 122], [59, 81, 139], [44, 113, 142],
+               [33, 144, 141], [39, 173, 129], [92, 200, 99], [253, 231, 37]];
+function viridis(t) {
+  t = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
+  const i = Math.min(STOPS.length - 2, t | 0), f = t - i, a = STOPS[i], b = STOPS[i + 1];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, 255];
+}
+
+const orb = new Orb(document.getElementById('c'), { background: '#0b0e13', sphere: '#11151c' });
+orb.canvas.focus();                        // arrows/WASD/QE rotate the focused globe
+document.getElementById('hud').addEventListener('click', () => orb.canvas.focus());
+orb.lookAt(180, 10);
+window.orb = orb;                          // console / bench access
+
+const status = document.getElementById('status');
+const cellEl = document.getElementById('cell');
+const cache = new Map();
+let layer = null, cur = null;
+let epoch = 0;                             // ignore stale async switches
+
+async function fetchBin(name, Ctor) {
+  const r = await fetch(`out/full/${name}`);
+  if (!r.ok) throw new Error(`${name} ${r.status}`);
+  return new Ctor(await r.arrayBuffer());
+}
+
+// Color by the cell's quantile within the level (rank via binary search into
+// the sorted ARs), matching the explorer's per-globe mode.
+function paint(i) {
+  const a = cur.ar[i];
+  if (!Number.isFinite(a)) return [68, 68, 68, 255];
+  const s = cur.sorted;
+  let lo = 0, hi = s.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (s[m] <= a) lo = m + 1; else hi = m; }
+  return viridis(Math.min(1, lo / (s.length - 1)));
+}
+
+async function show(res) {
+  const e = ++epoch;
+  status.textContent = `loading r${res} binaries…`;
+  if (!cache.has(res)) {
+    cache.set(res, Promise.all([
+      fetchBin(`ivea7h_r${res}_pos.f32`, Float32Array),
+      fetchBin(`ivea7h_r${res}_idx.u32`, Uint32Array),
+      fetchBin(`ivea7h_r${res}_ar.f32`, Float32Array),
+    ]).then(([pos, starts, ar]) => {
+      const sorted = Float64Array.from(ar).filter(Number.isFinite).sort();
+      return { pos, starts, ar, sorted, arMax: sorted[sorted.length - 1] };
+    }));
+  }
+  let d;
+  try { d = await cache.get(res); }
+  catch (err) {
+    cache.delete(res);
+    status.textContent = `r${res}: ${err.message} — run \`just web-full-geom\` + \`just web-full\``;
+    return;
+  }
+  if (e !== epoch) return;
+  cur = d;
+  const t0 = performance.now();
+  if (layer) layer.remove();
+  layer = orb.polygons({ lnglat: d.pos, starts: d.starts, fill: paint });
+  const nCells = d.starts.length - 1;
+  status.innerHTML =
+    `<b>${nCells.toLocaleString()}</b> cells · <b>${(d.pos.length / 2).toLocaleString()}</b> verts · `
+    + `max AR <b>${d.arMax.toFixed(3)}</b> · built <b>${Math.round(performance.now() - t0)} ms</b> · drag to rotate`;
+}
+
+// Hover: GPU pick -> highlight tint + index/AR readout.
+orb.on('hover', (e) => {
+  orb.highlight(e.index ?? -1, layer);
+  cellEl.textContent = (e.index == null || !cur) ? 'hover a cell…'
+    : `cell #${e.index.toLocaleString()} · AR ${Number.isFinite(cur.ar[e.index]) ? cur.ar[e.index].toFixed(4) : 'DNC'}`;
+});
+
+document.getElementById('resSel').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#resSel button').forEach((x) => x.classList.toggle('on', x === b));
+  show(+b.dataset.r);
+});
+
+show(5);
+</script>
+</body>
+</html>
