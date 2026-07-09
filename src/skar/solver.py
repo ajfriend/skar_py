@@ -43,14 +43,19 @@ def solve(
             great circle) as `ValueError`. Pass `<= 0` to bypass.
         max_outer: outer-iteration cap before returning a
             `'did_not_converge'` result.
-        method: solver path. `'alternating'` is the original solver —
-            very fast on compact inputs (DGGS cells) but it can fail to
-            converge on dense inputs spanning wide angles from the
-            optimal axis. `'trust'` is a trust-region descent that also
-            handles those wide/elongated inputs. `'auto'` (the default)
-            runs `'alternating'` and retries with `'trust'` if it did
-            not converge, returning the better outcome; the outcome's
-            `.method` records which path produced it.
+        method: solver path. `'auto'` (the default) resolves to the
+            library's recommended method for the pinned skar_zig
+            version — currently `'trust'`, a trust-region descent that
+            converges on every input family constructed to date,
+            including the wide-angle/elongated inputs the original
+            solver structurally cannot. `'alternating'` is that
+            original solver, kept for continuity (bit-stable with
+            pre-0.6.0 defaults) and for large dense near-circular
+            inputs where it can still be faster. The outcome's
+            `.method` records the concrete path that ran. Near the f64
+            gap floor (finest-resolution cells), WHICH cells certify at
+            a strict `gap_tol` differs between paths at noise level;
+            aspect ratios agree wherever both certify.
 
     Returns:
         One of `Converged`, `Infeasible`, or `DidNotConverge`

@@ -47,7 +47,7 @@ class Converged:
             iterations + re-certification attempts on ``'trust'``).
         method: which solver path produced this outcome —
             ``'alternating'`` or ``'trust'``. Under ``method='auto'``
-            this records whether the trust fallback was needed.
+            this is the concrete path the alias resolved to.
     """
 
     sigma: np.ndarray
@@ -92,8 +92,10 @@ class DidNotConverge:
             uncertified.
         Q: ``(3, 3)`` last-iterate eigenbasis (see `Converged`),
             uncertified.
-        gap: last computed duality gap — *not* certified to be below
-            ``gap_tol``; inspect alongside ``outer_iters``.
+        gap: gap at the last certified iterate — *not* certified to be
+            below ``gap_tol``; inspect alongside ``outer_iters``. The
+            sentinel value ``1e30`` means no certificate could ever be
+            constructed (``Q``/``sigma`` carry no information then).
         outer_iters: total iterations run by the path that produced this
             outcome (see `Converged.outer_iters`).
         method: which solver path produced this outcome —

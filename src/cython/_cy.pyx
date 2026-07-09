@@ -58,8 +58,10 @@ def solve(double[:, ::1] pts not None, double gap_tol, int n_hull,
         raise ValueError('skar: tolerances must be finite and positive')
     if err == 3:
         raise ValueError(
-            'skar: input is near-coplanar (points lie ~on a great circle); '
-            'pass coplanarity_tol<=0 to bypass this check'
+            'skar: input is (near-)coplanar — points lie ~on a great circle, '
+            'so no meaningful enclosing cone exists. coplanarity_tol<=0 '
+            'bypasses the near-coplanar check only; exactly rank-deficient '
+            'input is always rejected.'
         )
     if err == 4:
         raise MemoryError('skar: out of memory')

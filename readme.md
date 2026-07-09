@@ -139,12 +139,13 @@ the full field reference.
 
 ## Solver paths
 
-`solve` picks its solver via `method=`: `'alternating'` (the original
-solver — very fast on compact inputs like DGGS cells, but it can fail
-to converge on dense inputs spanning wide angles), `'trust'` (a
-trust-region descent that also handles those wide/elongated inputs),
-or `'auto'` (the default: alternating first, trust as fallback). The
-outcome's `.method` records which path produced it.
+`solve` picks its solver via `method=`: `'auto'` (the default) resolves
+to the library's recommended method — currently `'trust'`, a
+trust-region descent that converges on every input family constructed
+to date, including the wide/elongated inputs the original solver
+structurally cannot. `'alternating'` is that original solver, kept for
+continuity and for large dense near-circular inputs where it can still
+be faster. The outcome's `.method` records the concrete path that ran.
 
 ## Layout
 

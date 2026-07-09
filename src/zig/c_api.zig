@@ -23,9 +23,9 @@ pub const SKAR_OUT_OF_MEMORY: c_int = 4;
 pub const SKAR_INTERNAL: c_int = 5;
 pub const SKAR_INVALID_METHOD: c_int = 6;
 
-// `method` in-param values, mapping onto `skar.Method`. Under
-// SKAR_METHOD_AUTO the solver runs alternating first and falls back to
-// trust; `out_method` reports which path actually produced the outcome.
+// `method` in-param values, mapping onto `skar.Method`. SKAR_METHOD_AUTO
+// is upstream's alias for its recommended method (`Method.recommended`);
+// `out_method` reports the concrete path that produced the outcome.
 pub const SKAR_METHOD_ALTERNATING: c_int = 0;
 pub const SKAR_METHOD_TRUST: c_int = 1;
 pub const SKAR_METHOD_AUTO: c_int = 2;
@@ -61,11 +61,12 @@ fn pathTag(diag: skar.Diagnostics) c_int {
 /// cone axis is column 0 of `q` (q[0], q[3], q[6]) and the aspect ratio
 /// is sigma[2]/sigma[1], so neither is returned separately.
 /// `out_outer_iters` is `Diagnostics.totalIters()` upstream — the
-/// outer-iteration count on the alternating path, trust iterations +
-/// re-certification attempts on the trust path. `out_method` reports
-/// which path produced the outcome (SKAR_METHOD_ALTERNATING/TRUST;
-/// meaningful under SKAR_METHOD_AUTO, -1 for infeasible where no path
-/// tag exists).
+/// outer-iteration count on the alternating path; opening rounds +
+/// trust-region iterations + re-certification attempts on the trust
+/// path. `out_method` reports which path produced the outcome
+/// (SKAR_METHOD_ALTERNATING/TRUST; under SKAR_METHOD_AUTO that is the
+/// method the alias resolved to; -1 for infeasible, which carries no
+/// path tag).
 pub export fn skar_solve(
     pts_buf: [*]const f64,
     n: usize,
